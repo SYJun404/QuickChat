@@ -34,7 +34,7 @@ final class PanelDropView: NSView {
     /// as the wrong place (the copy can take as long as the source needs).
     private let promiseQueue: OperationQueue = {
         let queue = OperationQueue()
-        queue.name = "PopChat.drop-promises"
+        queue.name = "QuickChat.drop-promises"
         queue.maxConcurrentOperationCount = 1
         return queue
     }()
@@ -90,7 +90,7 @@ final class PanelDropView: NSView {
 
     private func receive(_ receivers: [NSFilePromiseReceiver]) {
         let destination = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PopChat-drops", isDirectory: true)
+            .appendingPathComponent("QuickChat-drops", isDirectory: true)
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)

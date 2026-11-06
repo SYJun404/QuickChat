@@ -124,7 +124,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// another app, e.g. to copy an API key for the Settings window.
     var onUserDismiss: (() -> Void)?
 
-    /// Pin is the one explicit "keep PopChat around" — AppDelegate consults it
+    /// Pin is the one explicit "keep QuickChat around" — AppDelegate consults it
     /// before the deactivation dismissal.
     var isPinned: Bool { state.pinned }
 
@@ -138,7 +138,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         if !panel.isVisible {
             show()
         } else if NSApp.keyWindow != nil {
-            // Focus is somewhere in PopChat — the panel itself, Settings, or a
+            // Focus is somewhere in QuickChat — the panel itself, Settings, or a
             // popover. The hotkey means "go away" and must work in ONE press;
             // keying on panel.isKeyWindow made the first press merely raise the
             // panel over an open Settings window.
@@ -422,7 +422,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     func windowDidResignKey(_ notification: Notification) {
         guard !state.pinned else { return }
         // Deferred one tick so the new key window is known: if key moved to another
-        // PopChat window (file picker, settings), keep the panel; hide only when
+        // QuickChat window (file picker, settings), keep the panel; hide only when
         // focus left the app entirely (keyWindow becomes nil for an accessory app).
         // This hook stays even though applicationDidResignActive also dismisses:
         // the panel is NONACTIVATING, so panel-only use can leave the app never

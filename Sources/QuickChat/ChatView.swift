@@ -10,9 +10,9 @@ func chatIcon(_ icon: NSImage?, fallback: String, size: CGFloat) -> some View {
 }
 
 extension Notification.Name {
-    static let popChatOpenSettings = Notification.Name("PopChatOpenSettings")
+    static let popChatOpenSettings = Notification.Name("QuickChatOpenSettings")
     /// Posted by FloatingPanel when ⌘V carries files/an image to attach.
-    static let popChatAttachPasteboard = Notification.Name("PopChatAttachPasteboard")
+    static let popChatAttachPasteboard = Notification.Name("QuickChatAttachPasteboard")
 }
 
 /// The "Glass" panel: translucent rounded shell, header chrome as overlay pills

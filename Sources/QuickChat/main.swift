@@ -1,17 +1,17 @@
 import AppKit
 import SwiftUI
 import PopSvg
-import PopChatBundleShim
+import QuickChatBundleShim
 import KeyboardShortcuts
 import SwiftMath
 
 // First, before any dependency can touch its resources: inside the .app, the SPM
-// dependencies' Bundle.module would otherwise trap (see PopChatBundleShim.m).
-PopChatInstallResourceBundleRedirect()
+// dependencies' Bundle.module would otherwise trap (see QuickChatBundleShim.m).
+QuickChatInstallResourceBundleRedirect()
 
 // Headless streaming checks (no UI):
-//   POPCHAT_API_KEY=… .build/debug/PopChat --smoke          plain streaming
-//   POPCHAT_API_KEY=… .build/debug/PopChat --smoke-search   agentic loop w/ DuckDuckGo
+//   POPCHAT_API_KEY=… .build/debug/QuickChat --smoke          plain streaming
+//   POPCHAT_API_KEY=… .build/debug/QuickChat --smoke-search   agentic loop w/ DuckDuckGo
 let smokePlain = CommandLine.arguments.contains("--smoke")
 let smokeSearch = CommandLine.arguments.contains("--smoke-search")
 // Verifies the default system prompt actually elicits <pasteable> blocks.
@@ -28,7 +28,7 @@ if smokePlain || smokeSearch || smokePasteable {
             ? "What is the latest stable release version of the Zed editor? Use web_search to check — do not answer from memory. Reply with just the version number and the source URL."
             : smokePasteable
                 ? "Give me a reusable conventional-commit message template for bug fixes, ready to copy."
-                : "Reply with exactly: PopChat streaming OK"
+                : "Reply with exactly: QuickChat streaming OK"
         print("smoke: \(config.baseURL) model=\(config.model) search=\(smokeSearch) pasteable=\(smokePasteable)")
         var chunks = 0
         var reasoningChars = 0
@@ -266,7 +266,7 @@ if CommandLine.arguments.contains("--smoke-typewriter") {
 }
 
 // User-installed Codex app-server check (no UI, no model turn/quota use):
-//   .build/debug/PopChat --check-codex-app-server
+//   .build/debug/QuickChat --check-codex-app-server
 if CommandLine.arguments.contains("--check-codex-app-server") {
     Task {
         do {
@@ -291,8 +291,8 @@ if CommandLine.arguments.contains("--check-codex-app-server") {
 // needs the user's real Codex, signed in. `web_search` is a config ENUM and
 // Codex REFUSES TO START on an unknown variant, so a wrong value here breaks
 // every turn rather than just search; probe A therefore fails loudly if the
-// variant PopChat sends stops being accepted. Probe B is the gate itself.
-//   .build/debug/PopChat --smoke-codex-app-server-search
+// variant QuickChat sends stops being accepted. Probe B is the gate itself.
+//   .build/debug/QuickChat --smoke-codex-app-server-search
 if CommandLine.arguments.contains("--smoke-codex-app-server-search") {
     Task {
         func turn(webSearch: Bool, model: String) async -> (text: String, searched: Bool, emptyQuery: Bool, error: String?) {
@@ -360,7 +360,7 @@ if CommandLine.arguments.contains("--smoke-codex-app-server-search") {
 // the replayed completion must not duplicate its item; the retryable error must
 // drop the aborted in-flight partial (never glue the re-stream onto it) and
 // surface a transient retry status instead of silence:
-//   .build/debug/PopChat --smoke-codex-app-server-streaming /path/to/fake-codex
+//   .build/debug/QuickChat --smoke-codex-app-server-streaming /path/to/fake-codex
 if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-streaming"),
    CommandLine.arguments.count > flag + 1 {
     let executable = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
@@ -432,7 +432,7 @@ if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-str
 
 // A fake executable for this harness acknowledges setup, then stays silent after
 // turn/start. The adapter must terminate it and surface the inactivity error:
-//   .build/debug/PopChat --smoke-codex-app-server-timeout /path/to/fake-codex
+//   .build/debug/QuickChat --smoke-codex-app-server-timeout /path/to/fake-codex
 if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-timeout"),
    CommandLine.arguments.count > flag + 1 {
     let executable = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
@@ -461,12 +461,12 @@ if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-tim
 }
 
 // Back-pressure regression. A fake executable that ACKNOWLEDGES setup and then
-// stops draining its stdin must not be able to wedge PopChat: the adapter blocks
+// stops draining its stdin must not be able to wedge QuickChat: the adapter blocks
 // inside a large `thread/inject_items` write, and stop() — the watchdog's and the
 // Stop button's only exit — must still be able to terminate the child. Holding a
 // lock across that write made stop() block on the lock the blocked write owned,
 // and this harness never returned:
-//   .build/debug/PopChat --smoke-codex-app-server-backpressure /path/to/fake-codex
+//   .build/debug/QuickChat --smoke-codex-app-server-backpressure /path/to/fake-codex
 if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-backpressure"),
    CommandLine.arguments.count > flag + 1 {
     let executable = URL(fileURLWithPath: CommandLine.arguments[flag + 1])
@@ -510,8 +510,8 @@ if let flag = CommandLine.arguments.firstIndex(of: "--smoke-codex-app-server-bac
 }
 
 // ChatGPT-subscription auth + streaming checks (no UI):
-//   .build/debug/PopChat --chatgpt-login    interactive: opens the browser OAuth flow
-//   .build/debug/PopChat --smoke-chatgpt    requires a prior login; one streaming turn
+//   .build/debug/QuickChat --chatgpt-login    interactive: opens the browser OAuth flow
+//   .build/debug/QuickChat --smoke-chatgpt    requires a prior login; one streaming turn
 if CommandLine.arguments.contains("--chatgpt-login") {
     Task { @MainActor in
         do {
@@ -537,7 +537,7 @@ if CommandLine.arguments.contains("--smoke-chatgpt") {
         print("smoke-chatgpt: model=\(model) account=\(ChatGPTAuth.accountEmail ?? "?") search=\(useSearch)")
         let prompt = useSearch
             ? "What is the latest stable release version of the Zed editor? Use web_search to check — do not answer from memory. Reply with just the version number and the source URL."
-            : "Reply with exactly: PopChat ChatGPT OK"
+            : "Reply with exactly: QuickChat ChatGPT OK"
         var chunks = 0
         let history = [OpenAIChatClient.WireMessage(role: "user", content: .text(prompt))]
         for await event in CodexResponsesClient.run(
@@ -774,7 +774,7 @@ if CommandLine.arguments.contains("--smoke-update") {
 
     func payload(_ json: String) -> Data { Data(json.utf8) }
     let good = UpdateChecker.decodeRelease(payload("""
-    {"tag_name":"v0.1.3","html_url":"https://github.com/lec77/PopChat/releases/tag/v0.1.3",
+    {"tag_name":"v0.1.3","html_url":"https://github.com/SYJun404/QuickChat/releases/tag/v0.1.3",
      "draft":false,"prerelease":false}
     """))
     log.check("decodes the tag without its v", good?.version == "0.1.3", "version=\(good?.version ?? "-")")
@@ -800,7 +800,7 @@ if CommandLine.arguments.contains("--smoke-update") {
 }
 
 // Resource bundles: the dependencies' Bundle.module must resolve INSIDE the
-// assembled .app (no network). Only meaningful when run from dist/PopChat.app —
+// assembled .app (no network). Only meaningful when run from dist/QuickChat.app —
 // build.sh runs it there after assembly. "Didn't trap" alone proves nothing on
 // this machine, where the accessor's compile-time fallback directory usually
 // exists; the redirect count is what shows the lookups went through
@@ -809,25 +809,25 @@ if CommandLine.arguments.contains("--smoke-bundles") {
     var log = CheckLog()
     let root = Bundle.main.bundleURL
     log.check("runs from an assembled .app", root.pathExtension == "app",
-              "Bundle.main is \(root.path) — run dist/PopChat.app/Contents/MacOS/PopChat --smoke-bundles")
+              "Bundle.main is \(root.path) — run dist/QuickChat.app/Contents/MacOS/QuickChat --smoke-bundles")
     _ = NSApplication.shared
     // The two lookups that crashed 0.1.2: the hotkey recorder (localized strings)
     // and a LaTeX font.
-    let recorder = KeyboardShortcuts.RecorderCocoa(for: .togglePopChat)
-    log.check("the hotkey recorder constructs", recorder.shortcutName == .togglePopChat)
+    let recorder = KeyboardShortcuts.RecorderCocoa(for: .toggleQuickChat)
+    log.check("the hotkey recorder constructs", recorder.shortcutName == .toggleQuickChat)
     log.check("a math font loads", MTFontManager.manager.latinModernFont(withSize: 12) != nil)
     let icons = [
         PopSvg.history, PopSvg.edit, PopSvg.pin, PopSvg.reasoning, PopSvg.copy,
         PopSvg.copyCheck, PopSvg.fork, PopSvg.retry, PopSvg.editPrompt,
     ]
     log.check("all chat SVGs load", icons.allSatisfy { $0 != nil })
-    let redirected = PopChatResourceBundleRedirectCount()
+    let redirected = QuickChatResourceBundleRedirectCount()
     log.check("resource lookups were redirected into Contents/Resources", redirected >= 3,
               "redirected=\(redirected)")
     // And the bundles the dependencies now hold ARE the in-app copies — not the
     // compile-time fallback, which on this machine usually still exists.
     let loaded = Set(Bundle.allBundles.map { $0.bundleURL.standardizedFileURL.path })
-    for name in ["KeyboardShortcuts_KeyboardShortcuts", "SwiftMath_SwiftMath", "PopChat_PopSvg"] {
+    for name in ["KeyboardShortcuts_KeyboardShortcuts", "SwiftMath_SwiftMath", "QuickChat_PopSvg"] {
         let expected = root.appendingPathComponent("Contents/Resources/\(name).bundle").standardizedFileURL.path
         log.check("\(name) resolved to the in-app copy", loaded.contains(expected),
                   "loaded=\(loaded.filter { $0.hasSuffix(".bundle") }.sorted())")
@@ -922,7 +922,7 @@ if CommandLine.arguments.contains("--smoke-reasoning") {
     log.finish()
 }
 
-// Attachment-loader check (no network): .build/debug/PopChat --smoke-file <path>
+// Attachment-loader check (no network): .build/debug/QuickChat --smoke-file <path>
 if let flagIndex = CommandLine.arguments.firstIndex(of: "--smoke-file"),
    CommandLine.arguments.count > flagIndex + 1 {
     let path = CommandLine.arguments[flagIndex + 1]
@@ -1974,7 +1974,7 @@ if CommandLine.arguments.contains("--smoke-find") {
     }
 }
 
-// Accent-color laws (no GUI, no network): .build/debug/PopChat --smoke-accent
+// Accent-color laws (no GUI, no network): .build/debug/QuickChat --smoke-accent
 //
 // The custom accent turns any hex into HSB and back on every popover open, so
 // that round trip has to be lossless; and the reason the picker is hand-rolled
@@ -2073,7 +2073,7 @@ if CommandLine.arguments.contains("--smoke-accent") {
 }
 
 // Attachment-capability laws (no GUI, no network, no defaults touched):
-//   .build/debug/PopChat --smoke-attach-caps
+//   .build/debug/QuickChat --smoke-attach-caps
 //
 // The 2026-07-23 capability design in miniature: resolution priority (manual
 // exception > learned > authoritative metadata > kind default), images always
@@ -2222,7 +2222,7 @@ if CommandLine.arguments.contains("--smoke-attach-caps") {
     exit(0)
 }
 
-// Drop-target laws (no GUI, no network): .build/debug/PopChat --smoke-drop
+// Drop-target laws (no GUI, no network): .build/debug/QuickChat --smoke-drop
 //
 // "Drag a fresh screenshot in" is a FILE-PROMISE drag: the PNG doesn't exist
 // on disk until the destination receives the promise, so the old URL-only
@@ -2924,7 +2924,7 @@ if CommandLine.arguments.contains("--smoke-providers") {
 // An LSUIElement app that opens nothing on launch reads as broken, and
 // double-clicking it again — the natural retry — used to be a literal no-op.
 // This drives the REAL launch path with the install marker cleared:
-//   .build/debug/PopChat --smoke-firstrun
+//   .build/debug/QuickChat --smoke-firstrun
 // (a GUI harness: it takes key window, so don't run it beside the others.)
 if CommandLine.arguments.contains("--smoke-firstrun") {
     let launchDelegate = MainActor.assumeIsolated { AppDelegate() }
@@ -2939,7 +2939,7 @@ if CommandLine.arguments.contains("--smoke-firstrun") {
             if let saved { defaults.set(saved, forKey: AppDelegate.hasLaunchedKey) }
             else { defaults.removeObject(forKey: AppDelegate.hasLaunchedKey) }
         }
-        // Pretend this machine has never run PopChat.
+        // Pretend this machine has never run QuickChat.
         defaults.removeObject(forKey: AppDelegate.hasLaunchedKey)
 
         var failures: [String] = []
@@ -2970,7 +2970,7 @@ if CommandLine.arguments.contains("--smoke-firstrun") {
             check(!launchDelegate.isPanelOnScreen, "a later launch stays out of the way")
 
             // ...and a login-item launch stays silent even on a fresh install:
-            // the user asked for PopChat to be READY at boot, not to greet them.
+            // the user asked for QuickChat to be READY at boot, not to greet them.
             defaults.removeObject(forKey: AppDelegate.hasLaunchedKey)
             launchDelegate.presentLaunchUI(loginItem: true)
         }

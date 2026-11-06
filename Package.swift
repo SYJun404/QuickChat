@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "PopChat",
+    name: "QuickChat",
     platforms: [.macOS(.v14)],
     dependencies: [
         // Pinned below 1.16.0: later versions contain #Preview macros, which fail to
@@ -14,9 +14,9 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "PopChat",
-            dependencies: ["KeyboardShortcuts", "CoreXLSX", "Splash", "SwiftMath", "PopChatBundleShim", "PopSvg"],
-            path: "Sources/PopChat"
+            name: "QuickChat",
+            dependencies: ["KeyboardShortcuts", "CoreXLSX", "Splash", "SwiftMath", "QuickChatBundleShim", "PopSvg"],
+            path: "Sources/QuickChat"
         ),
         .target(
             name: "PopSvg",
@@ -27,6 +27,6 @@ let package = Package(
             ]
         ),
         // Objective-C: the Bundle.module redirect for the assembled .app (see the .m).
-        .target(name: "PopChatBundleShim", path: "Sources/PopChatBundleShim"),
+        .target(name: "QuickChatBundleShim", path: "Sources/QuickChatBundleShim"),
     ]
 )

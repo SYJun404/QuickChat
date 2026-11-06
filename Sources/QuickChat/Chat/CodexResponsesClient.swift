@@ -18,7 +18,7 @@ enum CodexResponsesClient {
     private static let maxToolRounds = 10
 
     /// The backend expects a Codex-style `instructions` preamble from clients of
-    /// this flow. Kept minimal and honest: PopChat is a chat panel, not a coding
+    /// this flow. Kept minimal and honest: QuickChat is a chat panel, not a coding
     /// agent harness.
     private static let baseInstructions = """
     You are a helpful assistant answering in a lightweight chat panel. \
@@ -147,7 +147,7 @@ enum CodexResponsesClient {
 
     // MARK: - History → input items
 
-    /// Maps PopChat's chat-completions-shaped history onto Responses input items.
+    /// Maps QuickChat's chat-completions-shaped history onto Responses input items.
     /// (Tool rounds never appear in persisted history — only user/assistant turns.)
     private static func inputItem(for message: OpenAIChatClient.WireMessage) -> [String: Any] {
         let isAssistant = message.role == "assistant"

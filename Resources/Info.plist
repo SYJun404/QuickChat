@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>PopChat</string>
+	<string>QuickChat</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.chenle.PopChat</string>
 	<key>CFBundleIconFile</key>
@@ -13,9 +13,9 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>PopChat</string>
+	<string>QuickChat</string>
 	<key>CFBundleDisplayName</key>
-	<string>PopChat</string>
+	<string>QuickChat</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -35,7 +35,7 @@
 	     build time. NSAllowsLocalNetworking alone covers only .local, unqualified
 	     names and private/link-local addresses — a plain-http provider on a public
 	     IP failed with "the App Transport Security policy requires the use of a
-	     secure connection", which read as "PopChat can't add http providers".
+	     secure connection", which read as "QuickChat can't add http providers".
 	     NSAllowsArbitraryLoads subsumes local networking; do NOT keep both keys —
 	     macOS ignores NSAllowsArbitraryLoads whenever NSAllowsLocalNetworking is
 	     present (verified 2026-08-17: with both keys set, the same request is still

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// The popup window. `.nonactivatingPanel` is the load-bearing style: the panel can
-/// take keyboard focus without activating PopChat, so the previously active app stays
+/// take keyboard focus without activating QuickChat, so the previously active app stays
 /// active and regains typing focus the instant the panel closes.
 final class FloatingPanel: NSPanel {
     var onCancel: (() -> Void)?

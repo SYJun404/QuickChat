@@ -20,14 +20,14 @@
 // method family (consumes self, returns +1); a Swift @objc func cannot declare
 // those conventions and swizzling it in leaks or over-releases.
 
-#import "PopChatBundleShim.h"
+#import "QuickChatBundleShim.h"
 #import <objc/runtime.h>
 #import <stdatomic.h>
 
 static NSString *appRoot;                      // Bundle.main.bundlePath, captured at install
 static _Atomic NSUInteger redirectCount;
 
-static NSString *PopChatRedirectedPath(NSString *path) {
+static NSString *QuickChatRedirectedPath(NSString *path) {
     if (appRoot == nil || path == nil) return path;
     if (![path.pathExtension isEqualToString:@"bundle"]) return path;
     NSString *standardized = path.stringByStandardizingPath;
@@ -41,20 +41,20 @@ static NSString *PopChatRedirectedPath(NSString *path) {
     return inResources;
 }
 
-@interface NSBundle (PopChatResourceBundleRedirect)
+@interface NSBundle (QuickChatResourceBundleRedirect)
 // Declared as init-family so ARC applies initWithPath:'s ownership rules to the
 // swapped-in implementation as well.
 - (instancetype)popchat_initWithPath:(NSString *)path __attribute__((objc_method_family(init)));
 @end
 
-@implementation NSBundle (PopChatResourceBundleRedirect)
+@implementation NSBundle (QuickChatResourceBundleRedirect)
 - (instancetype)popchat_initWithPath:(NSString *)path {
     // After the exchange this selector carries Foundation's original -initWithPath:.
-    return [self popchat_initWithPath:PopChatRedirectedPath(path)];
+    return [self popchat_initWithPath:QuickChatRedirectedPath(path)];
 }
 @end
 
-void PopChatInstallResourceBundleRedirect(void) {
+void QuickChatInstallResourceBundleRedirect(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         // Captured BEFORE the swizzle: creating the main bundle must not recurse
@@ -66,6 +66,6 @@ void PopChatInstallResourceBundleRedirect(void) {
     });
 }
 
-NSUInteger PopChatResourceBundleRedirectCount(void) {
+NSUInteger QuickChatResourceBundleRedirectCount(void) {
     return atomic_load(&redirectCount);
 }

@@ -43,7 +43,7 @@ struct WebToolExecutor {
 
     static let maxFetchCharacters = 6000
     private static let userAgent =
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) PopChat/0.1"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) QuickChat/0.1"
 
     /// Short human-readable label shown in the transcript before executing.
     static func activityLabel(name: String, argumentsJSON: String) -> String {
@@ -220,7 +220,7 @@ struct WebToolExecutor {
         guard let http = response as? HTTPURLResponse else { return }
         guard http.statusCode == 200 else {
             let body = String(decoding: data.prefix(200), as: UTF8.self)
-            throw NSError(domain: "PopChat.Web", code: http.statusCode, userInfo: [
+            throw NSError(domain: "QuickChat.Web", code: http.statusCode, userInfo: [
                 NSLocalizedDescriptionKey: "HTTP \(http.statusCode): \(body)"
             ])
         }

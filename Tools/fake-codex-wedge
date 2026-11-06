@@ -2,7 +2,7 @@
 """Fake `codex app-server` for --smoke-codex-app-server-backpressure.
 
 Acknowledges setup, then stops draining stdin entirely — the shape of a stalled
-or deadlocked Codex. PopChat's next large write (thread/inject_items carrying a
+or deadlocked Codex. QuickChat's next large write (thread/inject_items carrying a
 long history or an image attachment) blocks once the pipe buffer fills, and the
 adapter must still be able to terminate this process and surface an error.
 

@@ -281,7 +281,7 @@ final class ChatStore: ObservableObject {
             }
         }
 
-        // Codex owns its own tool loop, so PopChat's client-side tools can't be
+        // Codex owns its own tool loop, so QuickChat's client-side tools can't be
         // injected into it. Don't resolve the engine choice (which can append a
         // fallback warning) for a provider that cannot consume it — the globe
         // instead switches Codex's NATIVE web_search on at launch.
@@ -632,7 +632,7 @@ final class ChatStore: ObservableObject {
     /// Inlines text attachments ahead of the typed text; images become content
     /// parts. Stays a bare string when there are no typed parts, for maximum
     /// provider compatibility. Capability-aware and re-decided EVERY send: images
-    /// are ALWAYS sent (PopChat does no image→text conversion — a known-refusing
+    /// are ALWAYS sent (QuickChat does no image→text conversion — a known-refusing
     /// model warns in the composer instead), and a PDF goes as the original file
     /// exactly when the provider+model resolved to `files == true`, else as its
     /// extracted text. Non-private (and nonisolated — it's pure) for the

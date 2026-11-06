@@ -1,6 +1,6 @@
 import Foundation
 
-/// "Is there a newer PopChat?" — nothing more.
+/// "Is there a newer QuickChat?" — nothing more.
 ///
 /// The app ships as a notarized DMG from GitHub Releases and has no installer,
 /// so without this a user who downloaded 0.1.0 stays on 0.1.0 forever: there is
@@ -13,7 +13,7 @@ import Foundation
 final class UpdateChecker: ObservableObject {
     /// The releases API for this app's own repository.
     nonisolated private static let latestReleaseURL = URL(
-        string: "https://api.github.com/repos/lec77/PopChat/releases/latest"
+        string: "https://api.github.com/repos/SYJun404/QuickChat/releases/latest"
     )!
 
     /// How long a check stays good. A menu-bar app can run for weeks, so this
@@ -106,7 +106,7 @@ final class UpdateChecker: ObservableObject {
         var request = URLRequest(url: latestReleaseURL)
         request.timeoutInterval = 20
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        request.setValue("PopChat/\(currentVersion)", forHTTPHeaderField: "User-Agent")
+        request.setValue("QuickChat/\(currentVersion)", forHTTPHeaderField: "User-Agent")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse else {

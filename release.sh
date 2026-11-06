@@ -1,5 +1,5 @@
 #!/bin/bash
-# Produces a notarized, stapled PopChat-<version>.dmg in dist/ — the artifact to attach
+# Produces a notarized, stapled QuickChat-<version>.dmg in dist/ — the artifact to attach
 # to a GitHub Release. Unlike an ad-hoc build, this one opens on someone else's Mac
 # without a Gatekeeper detour.
 #
@@ -16,9 +16,9 @@ cd "$(dirname "$0")"
 IDENTITY="${POPCHAT_SIGN_IDENTITY:-Developer ID Application: Le Chen (322TD85UJS)}"
 PROFILE="${POPCHAT_NOTARY_PROFILE:-developer}"
 
-APP="dist/PopChat.app"
+APP="dist/QuickChat.app"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
-DMG="dist/PopChat-$VERSION.dmg"
+DMG="dist/QuickChat-$VERSION.dmg"
 
 echo "==> Building and signing $VERSION"
 # Neutral scratch path: Bundle.module accessors embed the products dir into the
@@ -35,8 +35,8 @@ trap 'rm -rf "$WORK" "$STAGE"' EXIT
 # inside ticketless: Gatekeeper then has to reach Apple on first launch, and a user
 # who is offline is refused. ditto, not zip — it is what preserves bundle symlinks.
 echo "==> Notarizing the app (Apple's service; usually under two minutes)"
-ditto -c -k --keepParent "$APP" "$WORK/PopChat.zip"
-xcrun notarytool submit "$WORK/PopChat.zip" --keychain-profile "$PROFILE" --wait
+ditto -c -k --keepParent "$APP" "$WORK/QuickChat.zip"
+xcrun notarytool submit "$WORK/QuickChat.zip" --keychain-profile "$PROFILE" --wait
 xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 
@@ -44,7 +44,7 @@ echo "==> Staging disk image"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"   # drag-to-install target
 rm -f "$DMG"
-hdiutil create -volname "PopChat" -srcfolder "$STAGE" -fs HFS+ -format UDZO -quiet "$DMG"
+hdiutil create -volname "QuickChat" -srcfolder "$STAGE" -fs HFS+ -format UDZO -quiet "$DMG"
 
 echo "==> Signing disk image"
 codesign --force --timestamp --sign "$IDENTITY" "$DMG"
@@ -62,4 +62,4 @@ spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG
 echo
 echo "Notarized: $DMG"
 echo "Attach it to a release with:"
-echo "  gh release create v$VERSION \"$DMG\" --title \"PopChat $VERSION\" --notes-file <notes.md>"
+echo "  gh release create v$VERSION \"$DMG\" --title \"QuickChat $VERSION\" --notes-file <notes.md>"

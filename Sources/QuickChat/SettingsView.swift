@@ -142,7 +142,7 @@ struct SettingsView: View {
     private var generalTab: some View {
         Form {
             Section {
-                Toggle("Launch PopChat at login", isOn: $launchAtLogin)
+                Toggle("Launch QuickChat at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
                         do {
                             if enabled {
@@ -166,7 +166,7 @@ struct SettingsView: View {
                 updateRow
                 Toggle("Check for updates automatically", isOn: $automaticUpdateChecks)
             } footer: {
-                Text("PopChat checks GitHub Releases once a day and tells you when a newer version exists. It never downloads or installs anything — updating is opening the release page and dragging the new build to Applications, same as the first time.")
+                Text("QuickChat checks GitHub Releases once a day and tells you when a newer version exists. It never downloads or installs anything — updating is opening the release page and dragging the new build to Applications, same as the first time.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -197,7 +197,7 @@ struct SettingsView: View {
             } header: {
                 Text("Chat Style")
             } footer: {
-                Text("Applies to your messages in the panel. Custom opens a picker for any accent color; Accent fill flips its text between black and white for whichever reads better. Streaming text: Per-character fades in glyph by glyph, Per-sentence commits a sentence at a time. Defaults: Gray, Blue, Per-character streaming. Panel tint defaults to the system glass appearance; the slider overrides it for PopChat only. Reduce Transparency always wins.")
+                Text("Applies to your messages in the panel. Custom opens a picker for any accent color; Accent fill flips its text between black and white for whichever reads better. Streaming text: Per-character fades in glyph by glyph, Per-sentence commits a sentence at a time. Defaults: Gray, Blue, Per-character streaming. Panel tint defaults to the system glass appearance; the slider overrides it for QuickChat only. Reduce Transparency always wins.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -207,7 +207,7 @@ struct SettingsView: View {
     private var updateRow: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("PopChat \(UpdateChecker.currentVersion)")
+                Text("QuickChat \(UpdateChecker.currentVersion)")
                 switch updates.state {
                 case .idle:
                     EmptyView()
@@ -742,7 +742,7 @@ struct SettingsView: View {
                                 .contentShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .help("Clear — PopChat will try again on the next send")
+                        .help("Clear — QuickChat will try again on the next send")
                     }
                 }
             }
@@ -889,13 +889,13 @@ struct SettingsView: View {
     }
 
     /// Local Codex bridge. Authentication and installation belong to Codex, not
-    /// PopChat, so there is deliberately no install or sign-in button here.
+    /// QuickChat, so there is deliberately no install or sign-in button here.
     @ViewBuilder
     private var codexAppServerRows: some View {
         editorField("Codex path") {
             HStack(spacing: 6) {
                 TextField("Auto-detect", text: $codexExecutablePath)
-                    .help("Leave empty to auto-detect (PopChat checks common install locations, then asks your login shell), or enter the path `which codex` prints in Terminal.")
+                    .help("Leave empty to auto-detect (QuickChat checks common install locations, then asks your login shell), or enter the path `which codex` prints in Terminal.")
                     .onChange(of: codexExecutablePath) { _, _ in
                         // Not just a status reset: this also bumps the generation so a
                         // check already running against the OLD path cannot publish
@@ -942,7 +942,7 @@ struct SettingsView: View {
         .font(.caption)
 
         Label {
-            Text("You must install and maintain Codex yourself, then run `codex login` in Terminal. PopChat does not install Codex or copy its credentials; it only starts your local `codex app-server` process. The app-server protocol is experimental, so a Codex update may occasionally be required.")
+            Text("You must install and maintain Codex yourself, then run `codex login` in Terminal. QuickChat does not install Codex or copy its credentials; it only starts your local `codex app-server` process. The app-server protocol is experimental, so a Codex update may occasionally be required.")
         } icon: {
             Image(systemName: "info.circle.fill")
         }
@@ -950,7 +950,7 @@ struct SettingsView: View {
         .foregroundStyle(.secondary)
         .fixedSize(horizontal: false, vertical: true)
 
-        Text("Chat-only safety: PopChat requests ephemeral read-only threads with approval policy Never, and launches Codex with shell/exec, MCP, plugins/connectors, subagents, and other machine tools disabled. Managed Codex policy may override client settings, so app-server remains a local process you should trust and maintain.")
+        Text("Chat-only safety: QuickChat requests ephemeral read-only threads with approval policy Never, and launches Codex with shell/exec, MCP, plugins/connectors, subagents, and other machine tools disabled. Managed Codex policy may override client settings, so app-server remains a local process you should trust and maintain.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1035,7 +1035,7 @@ struct SettingsView: View {
             } header: {
                 Text("System Prompt")
             } footer: {
-                Text("Sent with every conversation. The default teaches the model PopChat's pasteable-block format; clear it to send no system prompt.")
+                Text("Sent with every conversation. The default teaches the model QuickChat's pasteable-block format; clear it to send no system prompt.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .help("Content the model wraps in <pasteable title=\"…\"> … </pasteable> tags is rendered as a copyable card in the transcript.")
@@ -1128,7 +1128,7 @@ struct SettingsView: View {
     private var hotkeyTab: some View {
         Form {
             Section {
-                KeyboardShortcuts.Recorder("Toggle PopChat:", name: .togglePopChat)
+                KeyboardShortcuts.Recorder("Toggle QuickChat:", name: .toggleQuickChat)
             } footer: {
                 Text("If ⌥Space is taken by another app, unbind it there or record a different shortcut.")
                     .font(.caption)

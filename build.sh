@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds PopChat.app into dist/. SwiftPM produces the binary; this script wraps it
+# Builds QuickChat.app into dist/. SwiftPM produces the binary; this script wraps it
 # in an app bundle (LSUIElement menu bar app) and signs it.
 #
 # Signing identity comes from POPCHAT_SIGN_IDENTITY; the default "-" is ad-hoc, which
@@ -36,15 +36,15 @@ fi
 
 # --build-system native, explicitly: swift-build's newer default backend lays products
 # out differently (.build/out/Products/<Config>) and generates a different Bundle.module
-# accessor; the paths below and Sources/PopChatBundleShim are written against native.
+# accessor; the paths below and Sources/QuickChatBundleShim are written against native.
 swift build -c "$CONFIG" --scratch-path "$SCRATCH" --build-system native ${SDK:+--sdk "$SDK"}
 
-BIN="$SCRATCH/$CONFIG/PopChat"
-APP="dist/PopChat.app"
+BIN="$SCRATCH/$CONFIG/QuickChat"
+APP="dist/QuickChat.app"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/PopChat"
+cp "$BIN" "$APP/Contents/MacOS/QuickChat"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"   # CFBundleIconFile
 
@@ -74,7 +74,7 @@ else
 fi
 # From INSIDE the assembled app, because that is the only place the check means
 # anything: the dependencies' Bundle.module accessors never look in Contents/Resources
-# (see Sources/PopChatBundleShim), and a copy that ran fine from .build/ shipped a
+# (see Sources/QuickChatBundleShim), and a copy that ran fine from .build/ shipped a
 # DMG that crashed on the first hotkey recorder or LaTeX message everywhere else.
-"$APP/Contents/MacOS/PopChat" --smoke-bundles
+"$APP/Contents/MacOS/QuickChat" --smoke-bundles
 echo "Run with: open $APP"

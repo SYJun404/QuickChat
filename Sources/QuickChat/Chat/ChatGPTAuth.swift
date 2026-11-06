@@ -210,7 +210,7 @@ enum ChatGPTAuth {
                         guard let requestLine,
                               let result = parseCallback(requestLine: requestLine, expectedState: expectedState) else {
                             // Favicon fetches etc. — answer politely, keep waiting.
-                            respond(connection, status: "404 Not Found", body: "PopChat: nothing here.")
+                            respond(connection, status: "404 Not Found", body: "QuickChat: nothing here.")
                             return
                         }
                         switch result {
@@ -218,7 +218,7 @@ enum ChatGPTAuth {
                             respond(
                                 connection,
                                 status: "200 OK",
-                                body: "<html><body style=\"font-family:-apple-system;text-align:center;padding-top:80px\"><h2>Signed in</h2><p>You can close this tab and return to PopChat.</p></body></html>"
+                                body: "<html><body style=\"font-family:-apple-system;text-align:center;padding-top:80px\"><h2>Signed in</h2><p>You can close this tab and return to QuickChat.</p></body></html>"
                             )
                             if resumed.claim() {
                                 listener.stateUpdateHandler = nil

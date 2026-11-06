@@ -4,7 +4,7 @@ import KeyboardShortcuts
 
 /// One-time orientation for a brand-new install.
 ///
-/// PopChat is `LSUIElement`: launching it puts a status item in the menu bar and
+/// QuickChat is `LSUIElement`: launching it puts a status item in the menu bar and
 /// shows nothing else, so a first-time user sees their double-click do
 /// *nothing*. The panel now opens on first launch, but that alone doesn't teach
 /// the two facts they need to find it again — the hotkey, and that the app lives
@@ -21,7 +21,7 @@ enum FirstRunHint {
     /// The recorded shortcut, not a hardcoded "⌥Space" — Settings can rebind it,
     /// and a hint that names the wrong keys is worse than no hint.
     static var shortcutDescription: String {
-        KeyboardShortcuts.getShortcut(for: .togglePopChat).map(String.init(describing:)) ?? ""
+        KeyboardShortcuts.getShortcut(for: .toggleQuickChat).map(String.init(describing:)) ?? ""
     }
 
     @MainActor
@@ -54,7 +54,7 @@ private struct HintCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("PopChat lives up here")
+            Text("QuickChat lives up here")
                 .font(.system(size: 13, weight: .semibold))
 
             VStack(alignment: .leading, spacing: 5) {

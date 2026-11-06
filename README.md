@@ -1,14 +1,14 @@
-# PopChat
+# QuickChat
 
-[![License: MIT](https://img.shields.io/github/license/lec77/PopChat)](LICENSE)
+[![License: MIT](https://img.shields.io/github/license/SYJun404/QuickChat)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
-![Latest release](https://img.shields.io/github/v/release/lec77/PopChat)
+![Latest release](https://img.shields.io/github/v/release/SYJun404/QuickChat)
 
 A mini AI chat app for quick, small (and usually temporary) chats — the kind that don't need a frontier model, so it pairs nicely with lighter, locally-run ones.
 
 Press a global hotkey (default **⌥Space**) and a floating chat panel appears with the input already focused. Pin it if you want to keep the messages as a reference for your other work.
 
-<p align="center"><img src="Resources/screenshot.png" width="720" alt="PopChat panel over a desktop"></p>
+<p align="center"><img src="Resources/screenshot.png" width="720" alt="QuickChat panel over a desktop"></p>
 
 
 ## Features
@@ -23,7 +23,7 @@ Press a global hotkey (default **⌥Space**) and a floating chat panel appears w
 
 ## Install
 
-Download the latest `PopChat-x.y.z.dmg` from [Releases](https://github.com/lec77/PopChat/releases), open it, and drag PopChat to Applications. Releases are Developer-ID signed and notarized, so macOS opens them without any Gatekeeper warning.
+If a packaged release is available, download `QuickChat-x.y.z.dmg` from [Releases](https://github.com/SYJun404/QuickChat/releases), open it, and drag QuickChat to Applications. Releases are Developer-ID signed and notarized, so macOS opens them without any Gatekeeper warning.
 
 Requires **macOS 14 or later**. The liquid-glass backdrop needs macOS 26; older systems get a solid panel.
 
@@ -32,10 +32,10 @@ Requires **macOS 14 or later**. The liquid-glass backdrop needs macOS 26; older 
 Needs a Swift toolchain — Xcode, or just the Command Line Tools (`xcode-select --install`).
 
 ```sh
-git clone https://github.com/lec77/PopChat.git
-cd PopChat
-./build.sh              # release build → dist/PopChat.app
-open dist/PopChat.app
+git clone https://github.com/SYJun404/QuickChat.git
+cd QuickChat
+./build.sh              # release build → dist/QuickChat.app
+open dist/QuickChat.app
 ```
 
 `./build.sh debug` builds the debug configuration. The script wraps the SwiftPM binary in an app bundle and ad-hoc signs it by default — fine for a build you made yourself, and you can point `POPCHAT_SIGN_IDENTITY` at your own certificate instead. `./release.sh` is the release path — it signs with a Developer ID, notarizes and staples both the app and the disk image; that one only works with my certificate.
@@ -47,17 +47,19 @@ There is no Xcode project — it's plain SwiftPM (`Package.swift`) plus `build.s
 Open Settings from the menu bar icon or **⌘,** inside the panel.
 
 - **Providers** — pick a preset or add a custom OpenAI-compatible endpoint, paste an API key, and fetch the model list. **Add Provider…** also offers a *Free tiers* section (Groq, Google Gemini, Mistral, Cerebras, NVIDIA NIM, Cohere, Hugging Face) that fills in the right base URL and links where to get a key. ChatGPT-subscription access has two separate presets:
-    - *OpenAI (Codex app-server)*: preferred. You must install and update Codex yourself, run `codex login` in Terminal, and ensure PopChat can find the `codex` executable (an explicit path field is available). PopChat only starts the local app-server; it does not install Codex or own/copy its login.
+    - *OpenAI (Codex app-server)*: preferred. You must install and update Codex yourself, run `codex login` in Terminal, and ensure QuickChat can find the `codex` executable (an explicit path field is available). QuickChat only starts the local app-server; it does not install Codex or own/copy its login.
     - *OpenAI subscription (unofficial)*: the existing direct OAuth flow. It opens your browser and needs port 1455 during sign-in. Because it calls a backend not documented for third-party apps, it may break and may carry account or terms risk.
 - **Web Search** — choose the engine; Tavily/Brave need keys, DuckDuckGo doesn't.
 - **Commands** — edit the system prompt and define slash commands.
 - **Hotkey** — record whatever global shortcut you want (⌥Space by default).
 
-PopChat checks GitHub Releases once a day and tells you in Settings › General (and in the menu bar icon's menu) when a newer version exists. It never downloads or installs anything — you update by opening the release page and dragging the new build to Applications, the same way you installed it. Turn the check off in Settings › General.
+QuickChat checks GitHub Releases once a day and tells you in Settings › General (and in the menu bar icon's menu) when a newer version exists. It never downloads or installs anything — you update by opening the release page and dragging the new build to Applications, the same way you installed it. Turn the check off in Settings › General.
 
 Local models need no key at all: run Ollama and pick its preset, or point a custom endpoint at LM Studio's server.
 
 ### Where things are stored
+
+QuickChat keeps the original bundle identifier and storage paths so existing preferences, credentials, and conversations remain accessible after the rename.
 
 | What | Where |
 | --- | --- |
@@ -83,12 +85,12 @@ Secrets are a plain JSON file, not the Keychain: builds from source are ad-hoc s
 
 ## Development
 
-`./build.sh debug` produces `.build/debug/PopChat`, which doubles as a headless test harness — there is no XCTest suite, the `--smoke-*` flags are the test suite:
+`./build.sh debug` produces `.build/debug/QuickChat`, which doubles as a headless test harness — there is no XCTest suite, the `--smoke-*` flags are the test suite:
 
 ```sh
-POPCHAT_API_KEY=… .build/debug/PopChat --smoke              # live streaming round-trip
-.build/debug/PopChat --smoke-typing                         # composer latency budget
-.build/debug/PopChat --smoke-find                           # find-in-chat behavior
+POPCHAT_API_KEY=… .build/debug/QuickChat --smoke              # live streaming round-trip
+.build/debug/QuickChat --smoke-typing                         # composer latency budget
+.build/debug/QuickChat --smoke-find                           # find-in-chat behavior
 ```
 
 A dozen more cover attachments, persistence, providers, prompt recall, cross-chat search, reasoning, the typewriter reveal and the Codex app-server transport (against fake fixtures, so they cost no subscription quota). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full list, the rules for running them, and the performance constraints to respect when changing the transcript or composer.

@@ -1,4 +1,4 @@
-// Renders PopChat's app icon at every size an .icns needs.
+// Renders QuickChat's app icon at every size an .icns needs.
 // Each size is drawn natively rather than downscaled from 1024, so the 16pt and
 // 32pt variants keep crisp edges instead of turning to mush.
 import AppKit

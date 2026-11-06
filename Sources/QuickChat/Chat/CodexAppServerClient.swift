@@ -1,6 +1,6 @@
 import Foundation
 
-/// Readiness of the user's own Codex installation. PopChat deliberately does not
+/// Readiness of the user's own Codex installation. QuickChat deliberately does not
 /// install, update, or authenticate Codex; it only starts `codex app-server`.
 enum CodexAppServerStatus: Equatable {
     case unknown
@@ -13,12 +13,12 @@ enum CodexAppServerStatus: Equatable {
 
 /// Local adapter for Codex's experimental JSONL app-server protocol.
 ///
-/// Each PopChat request gets an ephemeral Codex thread with the resolved PopChat
+/// Each QuickChat request gets an ephemeral Codex thread with the resolved QuickChat
 /// history injected into it. The thread is read-only, its sandbox has no network
 /// access, and it never asks for an approval: this provider is a chat transport,
 /// not an authorization for Codex to operate on the user's machine. Codex's own
 /// `web_search` is the one exception, since it acts on the backend rather than
-/// the machine — it follows PopChat's globe toggle (see `Session.init`).
+/// the machine — it follows QuickChat's globe toggle (see `Session.init`).
 enum CodexAppServerClient {
     static let executablePathKey = "codexExecutablePath"
 
@@ -412,10 +412,10 @@ enum CodexAppServerClient {
             // search, and the model would obey it over the tool being present.
             let boundary = webSearch
                 ? """
-                You are serving a normal chat inside PopChat. Do not inspect local files, run shell commands, modify files, call MCP tools, spawn agents, or otherwise act on the user's computer. Answer from the conversation, using web search when the question needs current or external information. PopChat has started this thread with a read-only filesystem and no local tool network access.
+                You are serving a normal chat inside QuickChat. Do not inspect local files, run shell commands, modify files, call MCP tools, spawn agents, or otherwise act on the user's computer. Answer from the conversation, using web search when the question needs current or external information. QuickChat has started this thread with a read-only filesystem and no local tool network access.
                 """
                 : """
-                You are serving a normal chat inside PopChat. Do not inspect local files, run shell commands, modify files, call MCP tools, spawn agents, or otherwise act on the user's computer. Answer directly from the conversation. PopChat has started this thread with read-only filesystem and no tool network access.
+                You are serving a normal chat inside QuickChat. Do not inspect local files, run shell commands, modify files, call MCP tools, spawn agents, or otherwise act on the user's computer. Answer directly from the conversation. QuickChat has started this thread with read-only filesystem and no tool network access.
                 """
             let developerInstructions = [split.systemPrompt, boundary]
                 .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -694,7 +694,7 @@ enum CodexAppServerClient {
         return "Codex app-server stopped responding: no protocol event arrived for \(duration). Stop the turn or update Codex, then try again."
     }
 
-    private static let missingMessage = "Codex is not installed or PopChat cannot find it. Install Codex yourself and run `codex login`. If it is already installed, run `which codex` in Terminal and paste the result into the Codex path field in Settings → Providers."
+    private static let missingMessage = "Codex is not installed or QuickChat cannot find it. Install Codex yourself and run `codex login`. If it is already installed, run `which codex` in Terminal and paste the result into the Codex path field in Settings → Providers."
 
     private struct Account: Sendable {
         var email: String?
@@ -817,11 +817,11 @@ enum CodexAppServerClient {
         guard let item, let type = item["type"]?.stringValue else { return nil }
         switch type {
         case "commandExecution":
-            return "⚠︎ Codex app-server attempted a local command; PopChat's read-only, no-approval policy applies."
+            return "⚠︎ Codex app-server attempted a local command; QuickChat's read-only, no-approval policy applies."
         case "fileChange":
-            return "⚠︎ Codex app-server attempted a file change; PopChat's read-only policy applies."
+            return "⚠︎ Codex app-server attempted a file change; QuickChat's read-only policy applies."
         case "mcpToolCall", "dynamicToolCall", "collabAgentToolCall":
-            return "⚠︎ Codex app-server attempted a tool call; PopChat did not grant additional permissions."
+            return "⚠︎ Codex app-server attempted a tool call; QuickChat did not grant additional permissions."
         default:
             return nil
         }
@@ -1036,7 +1036,7 @@ private final class Session: @unchecked Sendable {
         // the user's machine — it runs on the model backend, the sandbox stays
         // read-only and `networkAccess: false` — and Codex owns its own tool
         // loop, so this switch is the only web access this provider can have.
-        // It therefore follows PopChat's globe toggle instead of being pinned
+        // It therefore follows QuickChat's globe toggle instead of being pinned
         // off; a fresh process per turn is what makes that a launch argument.
         // The key is an ENUM (`disabled`/`cached`/`indexed`/`live`) and Codex
         // refuses to start on an unknown variant, so this is not a Bool spelled
@@ -1093,7 +1093,7 @@ private final class Session: @unchecked Sendable {
         let response = try request(method: "initialize", params: [
             "clientInfo": .object([
                 "name": .string("popchat"),
-                "title": .string("PopChat"),
+                "title": .string("QuickChat"),
                 "version": .string("1.0.0"),
             ]),
         ])

@@ -23,19 +23,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.image = NSImage(
-                systemSymbolName: "bubble.left.and.bubble.right.fill",
-                accessibilityDescription: "PopChat"
-            )
+                systemSymbolName: "bubble.left",
+                accessibilityDescription: "QuickChat"
+            )?.withSymbolConfiguration(.init(pointSize: 15, weight: .medium))
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
-        KeyboardShortcuts.onKeyUp(for: .togglePopChat) { [weak self] in
+        KeyboardShortcuts.onKeyUp(for: .toggleQuickChat) { [weak self] in
             self?.panelController.toggle()
         }
 
-        // "Dismiss PopChat" means all of it: a floating Settings window left
+        // "Dismiss QuickChat" means all of it: a floating Settings window left
         // hovering over the app the user returned to reads as stuck. Only
         // USER-initiated dismissals (hotkey, Esc, ⌘W, close button) fire this —
         // the focus-loss auto-hide must not yank Settings away while the user
@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// MUST be read during `applicationDidFinishLaunching` — it inspects the
     /// launch Apple event, which is only the current event that early. A login
     /// launch is the one case where showing the panel is wrong: the user asked
-    /// for PopChat to be *ready*, not to greet them at every boot.
+    /// for QuickChat to be *ready*, not to greet them at every boot.
     private var launchedAsLoginItem: Bool {
         guard let event = NSAppleEventManager.shared().currentAppleEvent,
               event.eventID == kAEOpenApplication else { return false }
@@ -129,7 +129,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showMenu() {
         let menu = NSMenu()
 
-        let toggleItem = NSMenuItem(title: "Toggle PopChat", action: #selector(togglePanel), keyEquivalent: "")
+        let toggleItem = NSMenuItem(title: "Toggle QuickChat", action: #selector(togglePanel), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
 
@@ -153,7 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "Quit PopChat", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit QuickChat", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
 
         statusItem.menu = menu
@@ -165,14 +165,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController.toggle()
     }
 
-    /// PopChat never installs anything itself — this hands the user off to the
+    /// QuickChat never installs anything itself — this hands the user off to the
     /// release page, where the DMG they already know how to use is waiting.
     @objc private func openReleasePage() {
         guard let release = updateChecker.availableRelease else { return }
         NSWorkspace.shared.open(release.page)
     }
 
-    /// Clicking into another app dismisses ALL of PopChat — Settings included.
+    /// Clicking into another app dismisses ALL of QuickChat — Settings included.
     /// Both windows float above whatever the user switched to (the panel by
     /// design, Settings because it must open over the floating panel), so
     /// anything left behind hovers ON TOP of the other app and reads as stuck.
@@ -244,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 backing: .buffered,
                 defer: false
             )
-            window.title = "PopChat Settings"
+            window.title = "QuickChat Settings"
             window.contentView = NSHostingView(rootView: SettingsView(
                 store: providerStore, shortcutStore: shortcutStore, updates: updateChecker,
                 onResetWindowSize: { [weak self] in self?.panelController.resetWindowSize() }

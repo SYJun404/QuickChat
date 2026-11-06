@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import PopSvg
 import PopChatBundleShim
 import KeyboardShortcuts
 import SwiftMath
@@ -815,13 +816,18 @@ if CommandLine.arguments.contains("--smoke-bundles") {
     let recorder = KeyboardShortcuts.RecorderCocoa(for: .togglePopChat)
     log.check("the hotkey recorder constructs", recorder.shortcutName == .togglePopChat)
     log.check("a math font loads", MTFontManager.manager.latinModernFont(withSize: 12) != nil)
+    let icons = [
+        PopSvg.history, PopSvg.edit, PopSvg.pin, PopSvg.reasoning, PopSvg.copy,
+        PopSvg.copyCheck, PopSvg.fork, PopSvg.retry, PopSvg.editPrompt,
+    ]
+    log.check("all chat SVGs load", icons.allSatisfy { $0 != nil })
     let redirected = PopChatResourceBundleRedirectCount()
-    log.check("both lookups were redirected into Contents/Resources", redirected >= 2,
+    log.check("resource lookups were redirected into Contents/Resources", redirected >= 3,
               "redirected=\(redirected)")
     // And the bundles the dependencies now hold ARE the in-app copies — not the
     // compile-time fallback, which on this machine usually still exists.
     let loaded = Set(Bundle.allBundles.map { $0.bundleURL.standardizedFileURL.path })
-    for name in ["KeyboardShortcuts_KeyboardShortcuts", "SwiftMath_SwiftMath"] {
+    for name in ["KeyboardShortcuts_KeyboardShortcuts", "SwiftMath_SwiftMath", "PopChat_PopSvg"] {
         let expected = root.appendingPathComponent("Contents/Resources/\(name).bundle").standardizedFileURL.path
         log.check("\(name) resolved to the in-app copy", loaded.contains(expected),
                   "loaded=\(loaded.filter { $0.hasSuffix(".bundle") }.sorted())")
@@ -1145,7 +1151,7 @@ if CommandLine.arguments.contains("--smoke-minsize") {
             let content = panel.contentRect(forFrameRect: panel.frame)
             let clamped = clamp(panel, NSSize(width: 400, height: 197))
             // Where does the composer field actually sit? Its bottom edge plus the
-            // capsule + composer paddings (5+6+12) must stay inside the window.
+            // capsule + composer paddings must stay inside the window.
             var fieldNote = "field=?"
             if let scroll = findFieldScroll(panel.contentView), let root = panel.contentView {
                 let frame = scroll.convert(scroll.bounds, to: root)
@@ -1180,15 +1186,15 @@ if CommandLine.arguments.contains("--smoke-minsize") {
                     guard let panel = app.windows.first(where: { $0 is FloatingPanel }) else { exit(1) }
                     let height = panel.contentRect(forFrameRect: panel.frame).height
                     let clamped = clamp(panel, NSSize(width: 400, height: 197))
-                    // The field must keep its designed bottom clearance (5+6+12
-                    // = 23pt) — a smaller gap means the input capsule is being
+                    // The compact composer has at least 13pt below the field.
+                    // A smaller gap means the input capsule is being
                     // squeezed out of the panel (e.g. by safe-area insets the
                     // compact height report can't see).
                     var gapOK = false
                     if let scroll = findFieldScroll(panel.contentView), let root = panel.contentView {
                         let frame = scroll.convert(scroll.bounds, to: root)
                         let bottomGap = root.isFlipped ? root.bounds.height - frame.maxY : frame.minY
-                        gapOK = bottomGap >= 20
+                        gapOK = bottomGap >= 13
                     }
                     // Oversized restore must have been shrunk onto a real screen.
                     let frame = panel.frame
@@ -2053,13 +2059,14 @@ if CommandLine.arguments.contains("--smoke-accent") {
         let flips = zip(decisions, decisions.dropFirst()).filter { $0 != $1 }.count
         guard flips <= 1 else { fail("hue \(hue): text color flipped \(flips) times along a brightness ramp") }
     }
-    guard Theme.bubbleForegroundNSColor(style: .accentTint, accentHex: "#FFD60A") == .labelColor else {
+    guard Theme.bubbleForegroundNSColor(style: .accentTint, accentHex: "#FFD60A", dark: false) == .labelColor else {
         fail("tinted bubbles must keep label color — the fill is mostly panel")
     }
 
-    // 5. Bubble-style migration: "quietGray" is gone, and decodes to the default.
-    guard BubbleStyle(rawValue: "quietGray") == nil else { fail("quietGray is still a case") }
-    guard BubbleStyle(rawValue: "quietGray") ?? .accentTint == .accentTint else { fail("quietGray must fall back to accentTint") }
+    // 5. Removed style names fall back to the current gray default.
+    guard BubbleStyle(rawValue: "quietGray") ?? BubbleStyle.defaultStyle == .neutral else {
+        fail("quietGray must fall back to the gray default")
+    }
 
     print("OK: \(checked) HSB round trips, clamping, hex fallbacks, contrast and bubble-style migration")
     exit(0)

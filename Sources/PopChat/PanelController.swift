@@ -19,20 +19,21 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     // Reserve enough space for the welcome screen before the first layout pass.
     private static let minWidth: CGFloat = 520
-    private static let compactMinHeight: CGFloat = 369
+    static let defaultWindowSize = NSSize(width: 750, height: 475)
+    private static let compactMinHeight = defaultWindowSize.height
     private static let expandedMinHeight: CGFloat = 320
-    private static let defaultExpandedHeight: CGFloat = 440
-    private static let defaultWidth: CGFloat = 580
+    private static let widthKey = "panelWidth"
+    private static let expandedHeightKey = "panelExpandedHeight"
 
     /// User's preferred height for the expanded (has messages) state. Clamped on
     /// read: values below the minimum may persist from before minimums were
     /// enforced (see windowWillResize).
     private var expandedHeight: CGFloat {
         get {
-            let stored = UserDefaults.standard.double(forKey: "panelExpandedHeight")
-            return stored > 0 ? max(stored, Self.expandedMinHeight) : Self.defaultExpandedHeight
+            let stored = UserDefaults.standard.double(forKey: Self.expandedHeightKey)
+            return stored > 0 ? max(stored, Self.expandedMinHeight) : Self.defaultWindowSize.height
         }
-        set { UserDefaults.standard.set(newValue, forKey: "panelExpandedHeight") }
+        set { UserDefaults.standard.set(newValue, forKey: Self.expandedHeightKey) }
     }
 
     /// User's preferred width, remembered the same way the expanded height is —
@@ -41,13 +42,13 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// one value: width doesn't change between the compact and expanded states.
     private var panelWidth: CGFloat {
         get {
-            let stored = UserDefaults.standard.double(forKey: "panelWidth")
-            return stored > 0 ? max(stored, Self.minWidth) : Self.defaultWidth
+            let stored = UserDefaults.standard.double(forKey: Self.widthKey)
+            return stored > 0 ? max(stored, Self.minWidth) : Self.defaultWindowSize.width
         }
-        set { UserDefaults.standard.set(newValue, forKey: "panelWidth") }
+        set { UserDefaults.standard.set(newValue, forKey: Self.widthKey) }
     }
 
-    /// The live minimum content size — 520×320 with messages, 520×369 on the welcome screen.
+    /// The welcome screen keeps its default height and grows when the composer needs room.
     private var minContentSize: NSSize {
         NSSize(
             width: Self.minWidth,
@@ -160,6 +161,24 @@ final class PanelController: NSObject, NSWindowDelegate {
     func prewarm() {
         _ = panel
         panel.contentView?.layoutSubtreeIfNeeded()
+    }
+
+    func resetWindowSize() {
+        UserDefaults.standard.removeObject(forKey: Self.widthKey)
+        UserDefaults.standard.removeObject(forKey: Self.expandedHeightKey)
+
+        let display = panel.screen
+        var content = panel.contentRect(forFrameRect: panel.frame)
+        let top = content.maxY
+        content.size = Self.defaultWindowSize
+        if chatStore.messages.isEmpty, let lastCompactHeight {
+            content.size.height = lastCompactHeight
+        }
+        content.origin.y = top - content.height
+        let frame = panel.frameRect(forContentRect: content)
+        let positioned = panel.isVisible ? panel.constrainFrameRect(frame, to: display) : frame
+        panel.setFrame(positioned, display: panel.isVisible)
+        if panel.isVisible, let display { shrinkToFit(display) }
     }
 
     // Summon: fade + scale 0.97→1 + rise from 8pt below. Dismiss: quick fade with

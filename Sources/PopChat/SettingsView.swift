@@ -32,6 +32,7 @@ struct SettingsView: View {
     @ObservedObject var store: ProviderStore
     @ObservedObject var shortcutStore: ShortcutStore
     @ObservedObject var updates: UpdateChecker
+    private let onResetWindowSize: (() -> Void)?
     @State private var tab: Tab
     @State private var searchKeyDraft = ""
     @State private var systemPromptDraft = ChatStore.systemPrompt
@@ -39,7 +40,7 @@ struct SettingsView: View {
     @AppStorage("webSearchEnabled") private var webEnabled = true
     @AppStorage("accentColor") private var accentHex = Theme.defaultAccentHex
     @AppStorage("customAccentColor") private var customAccentHex = ""
-    @AppStorage("bubbleStyle") private var bubbleStyleRaw = BubbleStyle.accentTint.rawValue
+    @AppStorage("bubbleStyle") private var bubbleStyleRaw = BubbleStyle.defaultStyle.rawValue
     @AppStorage("streamingMode") private var streamingModeRaw = StreamingMode.perCharacter.rawValue
     @AppStorage("liquidGlass") private var liquidGlass = true
     @AppStorage("panelTint") private var panelTint = -1.0
@@ -78,11 +79,13 @@ struct SettingsView: View {
 
     init(
         store: ProviderStore, shortcutStore: ShortcutStore,
-        updates: UpdateChecker, tab: Tab = .general, editing: UUID? = nil
+        updates: UpdateChecker, tab: Tab = .general, editing: UUID? = nil,
+        onResetWindowSize: (() -> Void)? = nil
     ) {
         self.store = store
         self.shortcutStore = shortcutStore
         self.updates = updates
+        self.onResetWindowSize = onResetWindowSize
         _tab = State(initialValue: tab)
         initialEditingID = editing
     }
@@ -167,6 +170,12 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            Section("Window Size") {
+                let size = PanelController.defaultWindowSize
+                LabeledContent("Default size", value: "\(Int(size.width)) × \(Int(size.height))")
+                Button("Reset to Default Size") { onResetWindowSize?() }
+                    .disabled(onResetWindowSize == nil)
+            }
             Section {
                 appearanceRow
                 accentRow
@@ -188,7 +197,7 @@ struct SettingsView: View {
             } header: {
                 Text("Chat Style")
             } footer: {
-                Text("Applies to your messages in the panel. Custom opens a picker for any accent color; Accent fill flips its text between black and white for whichever reads better. Streaming text: Per-character fades in glyph by glyph, Per-sentence commits a sentence at a time. Defaults: Accent tint, Blue, Per-character streaming. Panel tint defaults to the system glass appearance; the slider overrides it for PopChat only. Reduce Transparency always wins.")
+                Text("Applies to your messages in the panel. Custom opens a picker for any accent color; Accent fill flips its text between black and white for whichever reads better. Streaming text: Per-character fades in glyph by glyph, Per-sentence commits a sentence at a time. Defaults: Gray, Blue, Per-character streaming. Panel tint defaults to the system glass appearance; the slider overrides it for PopChat only. Reduce Transparency always wins.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -319,23 +328,32 @@ struct SettingsView: View {
             )
             .labelsHidden()
             .frame(width: 180)
+            .accessibilityLabel("Panel tint")
             Text("Tinted")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.tertiary)
+            Text(panelTint < 0 ? "Auto" : panelTint.formatted(.percent.precision(.fractionLength(0))))
+                .font(.system(size: 11))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+                .accessibilityHidden(true)
         }
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
     }
 
     private var previewRow: some View {
-        let style = BubbleStyle(rawValue: bubbleStyleRaw) ?? .accentTint
+        let style = BubbleStyle(rawValue: bubbleStyleRaw) ?? BubbleStyle.defaultStyle
         return HStack {
             Text("Preview")
                 .foregroundStyle(.secondary)
             Spacer()
             Text("Looks good — ship it")
                 .font(.system(size: 13))
-                .foregroundStyle(Theme.bubbleForeground(style: style, accentHex: accentHex))
+                .foregroundStyle(Color(nsColor: Theme.bubbleForegroundNSColor(
+                    style: style, accentHex: accentHex, dark: scheme == .dark
+                )))
                 .padding(.vertical, 9)
                 .padding(.horizontal, 14)
                 .background(

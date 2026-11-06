@@ -15,8 +15,16 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "PopChat",
-            dependencies: ["KeyboardShortcuts", "CoreXLSX", "Splash", "SwiftMath", "PopChatBundleShim"],
+            dependencies: ["KeyboardShortcuts", "CoreXLSX", "Splash", "SwiftMath", "PopChatBundleShim", "PopSvg"],
             path: "Sources/PopChat"
+        ),
+        .target(
+            name: "PopSvg",
+            resources: [
+                .copy("edit.svg"), .copy("history.svg"), .copy("pin.svg"),
+                .copy("reasoning.svg"), .copy("copy.svg"), .copy("copy-check.svg"),
+                .copy("fork.svg"), .copy("retry.svg"), .copy("Edit-prompt.svg"),
+            ]
         ),
         // Objective-C: the Bundle.module redirect for the assembled .app (see the .m).
         .target(name: "PopChatBundleShim", path: "Sources/PopChatBundleShim"),

@@ -19,7 +19,6 @@ Press a global hotkey (default **⌥Space**) and a floating chat panel appears w
 - **Retry the last answer** — with a different model if you like: switch the pill, press Retry. *Edit prompt* puts your last message back in the composer instead, and **↑** in an empty composer walks back through prompts you've sent.
 - **See the thinking** — while a reasoning model works, its thoughts scroll in a small window you can expand; once the answer lands they fold into a collapsed *Reasoning* section above it.
 - **Search your chats** — ⌘Y searches what was actually said, not just chat titles, and shows the matching line.
-- **Large editor** (⌘E) — the input capsule morphs into a full draft editor; ⌘↩ sends.
 - **Liquid-glass look** on macOS 26 (translucent panel with an adjustable tint), a solid fallback below that, Light/Dark/Auto appearance, four accent presets plus a custom color picker, and full support for Reduce Motion / Reduce Transparency.
 
 ## Install
@@ -77,7 +76,6 @@ Secrets are a plain JSON file, not the Keychain: builds from source are ad-hoc s
 | ⌘N | new chat |
 | ⌘Y | history popover (↑/↓ select, ↩ open, ⌘⌫ delete) |
 | ⌘F | find in chat (↑/↓ or ⌘G/⇧⌘G to step, ⎋ to close) |
-| ⌘E | large draft editor (⌘↩ sends) |
 | ⌘P | pin the panel open |
 | ⌘, | Settings |
 | ↩ / ⇧↩ | send / newline |

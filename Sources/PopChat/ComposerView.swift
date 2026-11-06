@@ -112,14 +112,17 @@ final class ComposingTextView: NSTextView {
     }
 }
 
+private final class ComposerScrollView: NSScrollView {
+    // Keep AppKit's caret tracking while ignoring wheel and trackpad gestures.
+    override func scrollWheel(with event: NSEvent) {}
+}
+
 /// AppKit-backed multiline input: grows with content up to `maxVisibleLines`,
 /// then scrolls internally so the caret always stays visible. A stable layout
 /// boundary — the height callback fires only when the measured height actually
 /// changes, never per keystroke. Native undo, IME and editing shortcuts.
 struct ComposerTextView: NSViewRepresentable {
     @Binding var text: String
-    /// Editor mode: fill whatever height the layout offers, always scrollable.
-    var fillsHeight = false
     var maxVisibleLines = 8
     var focusBump = 0
     var onHeightChange: (CGFloat) -> Void = { _ in }
@@ -159,13 +162,13 @@ struct ComposerTextView: NSViewRepresentable {
         // File drops fall through to the panel-wide attachment target.
         textView.unregisterDraggedTypes()
 
-        let scroll = NSScrollView()
+        let scroll = ComposerScrollView()
         scroll.documentView = textView
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
+        scroll.hasVerticalScroller = false
         scroll.drawsBackground = false
         context.coordinator.textView = textView
         context.coordinator.observeWidth(of: scroll)
+        context.coordinator.remeasure()
         return scroll
     }
 
@@ -189,19 +192,6 @@ struct ComposerTextView: NSViewRepresentable {
             textView.string = text
             coordinator.remeasure()
         }
-        // Mode flip (⌘E morph): the same NSTextView is reused, so collapsing
-        // back to the capsule needs a fresh clamped measurement and the caret
-        // scrolled back into view — drafts longer than 8 lines return to the
-        // capsule's internal scroll.
-        if coordinator.lastFillsHeight != fillsHeight {
-            coordinator.lastFillsHeight = fillsHeight
-            if !fillsHeight {
-                coordinator.remeasure()
-                DispatchQueue.main.async {
-                    textView.scrollRangeToVisible(textView.selectedRange())
-                }
-            }
-        }
         if coordinator.lastFocusBump != focusBump {
             coordinator.lastFocusBump = focusBump
             DispatchQueue.main.async {
@@ -214,7 +204,6 @@ struct ComposerTextView: NSViewRepresentable {
         var parent: ComposerTextView
         weak var textView: NSTextView?
         var lastFocusBump = Int.min
-        var lastFillsHeight: Bool?
         private var lastHeight: CGFloat = -1
         private var widthObserver: NSObjectProtocol?
 
@@ -256,8 +245,7 @@ struct ComposerTextView: NSViewRepresentable {
         /// Reports the clamped content height — asynchronously, because this can
         /// be reached during a layout pass, and only when it actually changed.
         func remeasure() {
-            guard !parent.fillsHeight,
-                  let textView,
+            guard let textView,
                   let layoutManager = textView.layoutManager,
                   let container = textView.textContainer else { return }
             layoutManager.ensureLayout(for: container)
@@ -300,9 +288,8 @@ struct ComposerTextView: NSViewRepresentable {
 }
 
 /// The input area: capsule field (grows to 8 lines, then scrolls), slash-command
-/// popup, attachment chips, hint row — or, in editor mode, a full-height draft
-/// editor (⌘E, Esc closes, ⌘↩ sends). Owns all transient typing state so
-/// keystrokes invalidate only this subtree.
+/// popup and attachment chips. Owns transient typing state so keystrokes
+/// invalidate only this subtree.
 struct ComposerView: View {
     @ObservedObject var model: ComposerModel
     /// Observed for the capability warning: it must re-resolve when the switcher
@@ -313,7 +300,6 @@ struct ComposerView: View {
     let focusBump: Int
     let homeStyle: Bool
     @Binding var pinned: Bool
-    @Binding var editorMode: Bool
     let onSend: (String, [Attachment]) -> Void
     let onStop: () -> Void
     let onFocusRequest: () -> Void
@@ -329,19 +315,16 @@ struct ComposerView: View {
     @State private var recall: (entries: [String], index: Int)?
     @AppStorage("webSearchEnabled") private var webEnabled = true
     @AppStorage("accentColor") private var accentHex = Theme.defaultAccentHex
+    @AppStorage("liquidGlass") private var liquidGlass = true
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var accent: Color { Theme.color(accentHex) }
 
     private var placeholder: String {
         if homeStyle { return "Ask anything, or type / for commands…" }
-        return editorMode ? "Write a long prompt…" : "Message…  (“/” for shortcuts)"
+        return "Message…  (“/” for shortcuts)"
     }
-
-    /// Chrome (title row, footer, side buttons) crossfades offset from the
-    /// geometry morph so it never smears with the spring.
-    private static let chromeFade = AnyTransition.opacity.animation(.easeOut(duration: 0.15))
 
     var body: some View {
         VStack(spacing: 8) {
@@ -353,42 +336,17 @@ struct ComposerView: View {
                 attachCard
                     .transition(.opacity)
             }
-            HStack(alignment: .bottom, spacing: 6) {
-                if homeStyle {
-                    Button(action: attachViaPicker) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
-                            .frame(width: 34, height: 34)
-                            .contentShape(Circle())
-                    }
-                    .glassCard(Circle())
-                    .accessibilityLabel("Attach files")
-                    .help("Attach files (or drag & drop, or paste)")
-                }
+            HStack(alignment: .bottom, spacing: 10) {
                 composerCard
-                if homeStyle {
-                    homeCommands
-                }
+                composerButtons
             }
             .buttonStyle(.plain)
-            if editorMode {
-                editorFooter
-                    .transition(Self.chromeFade)
-            }
         }
-        .padding(.top, homeStyle ? 0 : 10)
-        .padding(.horizontal, homeStyle ? 7 : 12)
-        .padding(.bottom, homeStyle ? 7 : 12)
-        .frame(maxHeight: editorMode ? .infinity : nil)
+        .padding(.top, 10)
+        .padding([.horizontal, .bottom], 7)
         .animation(.easeOut(duration: 0.12), value: completionCandidates.isEmpty)
         .animation(.easeOut(duration: 0.12), value: model.pendingAttachments.count)
         .animation(.easeOut(duration: 0.12), value: model.attachNotice)
-        // Capsule ↔ editor is ONE surface morphing (4d); under Reduce Motion the
-        // geometry snaps and only the chrome crossfade remains.
-        .animation(
-            reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.32, dampingFraction: 0.82),
-            value: editorMode
-        )
         .onChange(of: draft) { _, newValue in
             if completionIndex != 0 { completionIndex = 0 }
             // Editing a recalled prompt makes it yours again: further ↑ then
@@ -396,7 +354,6 @@ struct ComposerView: View {
             // one and discarding what was just typed.
             if let recall, recall.entries[recall.index] != newValue { self.recall = nil }
         }
-        .onChange(of: editorMode) { _, _ in onFocusRequest() }
         .onChange(of: model.injectedDraft) { _, injected in
             guard let injected else { return }
             draft = injected
@@ -409,96 +366,30 @@ struct ComposerView: View {
         }
     }
 
-    // MARK: - The morphing surface (capsule ⇄ editor)
-
-    /// The input capsule and the ⌘E editor are the same glass card: same fill and
-    /// hairline, corner radius 21.5 (capsule) ⇄ 18 (editor). The text view sits at
-    /// a stable structural position in both modes, so AppKit keeps one NSTextView —
-    /// first responder, caret and undo stack survive the morph.
     private var composerCard: some View {
-        VStack(spacing: 0) {
-            if editorMode {
-                HStack(spacing: 6) {
-                    Text("Draft")
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("⌘E")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
-                        )
-                    Button {
-                        editorMode = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
-                            .contentShape(Circle())
-                    }
-                    .keyboardShortcut("e", modifiers: .command) // ⌘E toggles the editor
-                    .help("Close editor (⌘E or Esc)")
-                }
-                .padding(.top, 10)
-                .padding(.leading, 14)
-                .padding(.trailing, 10)
-                .transition(Self.chromeFade)
-            }
-            // Bottom alignment keeps the buttons on the LAST text line as the
-            // field grows. At one line the field row is 31pt (21 + 2×5) against
-            // 24pt icon slots — without compensation the icons sag 3.5pt below
-            // the text center. The bottom padding lifts each 24pt slot's center
-            // to 15.5pt from the row bottom: the text line's center, and level
-            // with the 30pt send slot (center 15).
-            HStack(alignment: .bottom, spacing: 10) {
-                if !editorMode, !homeStyle {
-                    attachButton
-                        .padding(.bottom, 3.5)
-                        .transition(Self.chromeFade)
-                    globeButton
-                        .padding(.bottom, 3.5)
-                        .transition(Self.chromeFade)
-                }
-                composerField
-                    .frame(height: editorMode ? nil : inputHeight)
-                    .frame(maxHeight: editorMode ? .infinity : nil)
-                    .padding(.vertical, editorMode ? 8 : 5)
-                if !editorMode, !homeStyle {
-                    Button {
-                        editorMode = true
-                    } label: {
-                        Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 24, height: 24)
-                            .contentShape(Circle())
-                    }
-                    .keyboardShortcut("e", modifiers: .command)
-                    .help("Expand editor (⌘E)")
-                    .padding(.bottom, 3.5)
-                    .transition(Self.chromeFade)
-                }
-                if !editorMode, !homeStyle || canSend || isStreaming {
-                    sendOrStopButton(size: homeStyle ? 20 : 26)
-                        .transition(Self.chromeFade)
-                }
-            }
+        composerField
+            .frame(height: inputHeight)
             .padding(.horizontal, 14)
-            .padding(.top, editorMode ? 0 : (homeStyle ? 1.5 : 6))
-            .padding(.bottom, homeStyle ? 1.5 : 6)
-        }
-        .buttonStyle(.plain)
-        .glassCard(RoundedRectangle(cornerRadius: editorMode ? 18 : 21.5, style: .continuous))
+            .padding(.vertical, 8.5)
+            .background {
+                composerSurface(in: RoundedRectangle(cornerRadius: 21.5, style: .continuous))
+            }
     }
 
-    private var homeCommands: some View {
-        Menu {
-            Toggle("Web access", isOn: $webEnabled)
+    @ViewBuilder
+    private func composerSurface<S: InsettableShape>(in shape: S) -> some View {
+        // Switch only the backdrop so the native text view keeps its identity.
+        if #available(macOS 26.0, *), liquidGlass, !reduceTransparency {
+            Color.clear.glassEffect(.regular, in: shape)
+                .allowsHitTesting(false)
+        } else {
+            Color.clear.glassCard(shape)
+                .allowsHitTesting(false)
+        }
+    }
+
+    private var commandMenu: some View {
+        composerMenu("Chat commands", symbol: "command") {
             Toggle("Keep on top", isOn: $pinned)
             Divider()
             Button("Browse slash commands") {
@@ -506,60 +397,49 @@ struct ComposerView: View {
                 onFocusRequest()
             }
             .disabled(!draft.isEmpty || shortcutStore.shortcuts.isEmpty)
-        } label: {
-            Image(systemName: "command")
-                .font(.system(size: 17, weight: .medium))
+        }
+    }
+
+    private func composerMenu<MenuContent: View>(
+        _ title: String, symbol: String, @ViewBuilder content: () -> MenuContent
+    ) -> some View {
+        Menu(content: content) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .medium))
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
-        .frame(width: 34, height: 34)
-        .glassCard(Circle())
-        .accessibilityLabel("Chat commands")
-        .help("Chat commands")
+        .frame(width: 38, height: 38)
+        .background { composerSurface(in: Circle()) }
+        .accessibilityLabel(title)
+        .help(title)
     }
 
-    private var editorFooter: some View {
+    private var actionsMenu: some View {
+        composerMenu("Message actions", symbol: "option") {
+            Button("Attach files…", action: attachViaPicker)
+            Toggle("Web access", isOn: $webEnabled)
+            Divider()
+            if isStreaming {
+                Button("Stop generating", action: onStop)
+            } else {
+                Button("Send message", action: submit)
+                    .disabled(!canSend)
+            }
+        }
+    }
+
+    private var composerButtons: some View {
         HStack(spacing: 10) {
-            attachButton
-            globeButton
-            Spacer()
-            Text("↩ newline · ⌘↩ send")
-                .font(.system(size: 10.5))
-                .foregroundStyle(.tertiary)
-            sendOrStopButton(size: 26, sendShortcut: .init(.return, modifiers: .command))
+            actionsMenu
+            commandMenu
         }
-        .buttonStyle(.plain)
-    }
-
-    private var attachButton: some View {
-        Button(action: attachViaPicker) {
-            Image(systemName: "paperclip")
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Circle())
-        }
-        .help("Attach files (or drag & drop, or paste)")
-    }
-
-    private var globeButton: some View {
-        Button {
-            webEnabled.toggle()
-        } label: {
-            Image(systemName: "globe")
-                .font(.system(size: 16))
-                .foregroundStyle(webEnabled ? accent : Color.secondary)
-                .frame(width: 24, height: 24)
-                .contentShape(Circle())
-        }
-        .help(webEnabled ? "Web access on — model may search and read pages" : "Web access off")
     }
 
     private var composerField: some View {
         ComposerTextView(
             text: $draft,
-            fillsHeight: editorMode,
             maxVisibleLines: 8,
             focusBump: focusBump,
             onHeightChange: { inputHeight = $0 },
@@ -568,7 +448,6 @@ struct ComposerView: View {
                     complete()
                     return true
                 }
-                if editorMode { return false } // Return = newline in the editor
                 submit()
                 return true
             },
@@ -591,13 +470,7 @@ struct ComposerView: View {
                 complete()
                 return true
             },
-            onEscape: {
-                if editorMode {
-                    editorMode = false
-                } else {
-                    onClose()
-                }
-            }
+            onEscape: onClose
         )
         .overlay(alignment: .topLeading) {
             if draft.isEmpty {
@@ -610,46 +483,13 @@ struct ComposerView: View {
         }
     }
 
-    @ViewBuilder
-    private func sendOrStopButton(size: CGFloat, sendShortcut: KeyboardShortcut? = nil) -> some View {
-        if isStreaming {
-            Button(action: onStop) {
-                Image(systemName: "stop.circle.fill")
-                    .font(.system(size: size))
-                    .foregroundStyle(Theme.stopRed)
-                    .frame(width: size + 4, height: size + 4)
-                    .contentShape(Circle())
-            }
-            .help("Stop generating")
-        } else {
-            let button = Button(action: submitFromButton) {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: size))
-                    .foregroundStyle(canSend ? accent : Color.primary.opacity(0.25))
-                    .frame(width: size + 4, height: size + 4)
-                    .contentShape(Circle())
-            }
-            .disabled(!canSend)
-            if let sendShortcut {
-                button
-                    .keyboardShortcut(sendShortcut)
-                    .help("Send (⌘↩)")
-            } else {
-                button
-                    .help("Send")
-            }
-        }
-    }
-
     // MARK: - Prompt recall (↑ / ↓)
 
     /// ↑ walks back through prompts you have sent, shell-style. It only STARTS
     /// from an empty composer — ↑ in a draft you are writing has to keep meaning
     /// "move the caret up", or a multi-line draft becomes uneditable and a
-    /// half-typed one gets eaten. In the ⌘E editor it never applies: that mode
-    /// exists precisely for long, multi-line drafts.
+    /// half-typed one gets eaten.
     private func recallOlder() -> Bool {
-        guard !editorMode else { return false }
         // Starting a walk needs an empty draft; continuing one does not.
         let entries = recall?.entries ?? (draft.isEmpty ? PromptHistory.entries : [])
         let next = recall.map { $0.index + 1 } ?? 0
@@ -666,7 +506,7 @@ struct ComposerView: View {
     /// ↓ walks back toward the present, and past the newest entry returns the
     /// empty composer you started from.
     private func recallNewer() -> Bool {
-        guard !editorMode, let recall else { return false }
+        guard let recall else { return false }
         if recall.index == 0 {
             self.recall = nil
             draft = ""
@@ -680,7 +520,7 @@ struct ComposerView: View {
     // MARK: - Slash-command completion
 
     private var completionCandidates: [PromptShortcut] {
-        guard !editorMode, draft.hasPrefix("/"), !draft.contains(" ") else { return [] }
+        guard draft.hasPrefix("/"), !draft.contains(" ") else { return [] }
         let query = String(draft.dropFirst()).lowercased()
         return shortcutStore.shortcuts.filter {
             query.isEmpty || $0.name.lowercased().hasPrefix(query)
@@ -816,14 +656,6 @@ struct ComposerView: View {
 
     private var canSend: Bool {
         !draft.trimmingCharacters(in: .whitespaces).isEmpty || !model.pendingAttachments.isEmpty
-    }
-
-    private func submitFromButton() {
-        let hadContent = canSend
-        submit()
-        if hadContent, editorMode {
-            editorMode = false
-        }
     }
 
     private func submit() {

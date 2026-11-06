@@ -1,4 +1,13 @@
 import SwiftUI
+import PopSvg
+
+func chatIcon(_ icon: NSImage?, fallback: String, size: CGFloat) -> some View {
+    (icon.map { Image(nsImage: $0) } ?? Image(systemName: fallback))
+        .renderingMode(.template)
+        .resizable()
+        .scaledToFit()
+        .frame(width: size, height: size)
+}
 
 extension Notification.Name {
     static let popChatOpenSettings = Notification.Name("PopChatOpenSettings")
@@ -23,7 +32,6 @@ struct ChatView: View {
     var onCompactHeightChange: (CGFloat) -> Void = { _ in }
 
     @State private var composerModel = ComposerModel()
-    @State private var draftEditorShown = false
     @State private var dropTargeted = false
     @State private var historyShown = false
     @State private var modelPillHovered = false
@@ -56,16 +64,12 @@ struct ChatView: View {
 
     private var accent: Color { Theme.color(accentHex) }
 
-    private var showsHome: Bool { store.messages.isEmpty && !draftEditorShown }
+    private var showsHome: Bool { store.messages.isEmpty }
     private let panelShape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+    private let welcomeMinHeight: CGFloat = 368
 
     var body: some View {
-        VStack(spacing: 0) {
-            mainContent
-            if store.messages.isEmpty, !draftEditorShown {
-                Spacer(minLength: 0)
-            }
-        }
+        mainContent
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { PanelGlassBackground() }
         .clipShape(panelShape)
@@ -92,13 +96,6 @@ struct ChatView: View {
         // While the history popover is key, ITS ⌘F wins (popovers get their own
         // window), which is what "⌘F in history searches the histories" means.
         .keyCommand("f") { toggleFind() }
-        .onChange(of: draftEditorShown) { _, shown in
-            // The editor needs real height even when the chat is empty; the
-            // compact preference resumes reporting when the editor closes.
-            if store.messages.isEmpty, shown {
-                onCompactHeightChange(440)
-            }
-        }
         // Lives on the root, not in transcriptZone: restoring into an EMPTY panel
         // builds that subtree fresh, and .onChange never fires on first appearance.
         .onChange(of: store.restoreTick) { _, _ in revealRestoredTranscript() }
@@ -119,15 +116,10 @@ struct ChatView: View {
 
     private var mainContent: some View {
         VStack(spacing: 0) {
-            // The ⌘E editor keeps the header pills visible (4d); only the
-            // transcript hides while it's open.
             if showsHome {
                 homeHeader
+                    .background { compactHeightReader }
                 homeWelcome
-            } else if draftEditorShown {
-                pillsRow
-                    .padding(12)
-                    .background(WindowDragStrip())
             } else {
                 transcriptZone
             }
@@ -139,22 +131,27 @@ struct ChatView: View {
                 focusBump: state.focusBump,
                 homeStyle: showsHome,
                 pinned: $state.pinned,
-                editorMode: $draftEditorShown,
                 onSend: { text, attachments in store.send(text, attachments: attachments) },
                 onStop: { store.stop() },
                 onFocusRequest: { state.focusBump += 1 },
                 onClose: onClose
             )
+            .background {
+                if showsHome { compactHeightReader }
+            }
         }
-        .background(
-            GeometryReader { geometry in
-                Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
-            }
-        )
         .onPreferenceChange(ContentHeightKey.self) { height in
-            if store.messages.isEmpty, !draftEditorShown {
-                onCompactHeightChange(height)
+            if showsHome, height > 0 {
+                // The welcome area absorbs spare space. Measure its minimum
+                // rather than the current window height so the panel can shrink.
+                onCompactHeightChange(height + welcomeMinHeight)
             }
+        }
+    }
+
+    private var compactHeightReader: some View {
+        GeometryReader { geometry in
+            Color.clear.preference(key: ContentHeightKey.self, value: geometry.size.height)
         }
     }
 
@@ -195,18 +192,6 @@ struct ChatView: View {
             }
 
             Spacer(minLength: 8)
-
-            Button {
-                draftEditorShown = true
-            } label: {
-                Image(systemName: "arrow.up.forward.app")
-                    .font(.system(size: 15, weight: .medium))
-                    .frame(width: 28, height: 30)
-                    .contentShape(Rectangle())
-            }
-            .keyboardShortcut("e", modifiers: .command)
-            .accessibilityLabel("Expand draft editor")
-            .help("Expand editor (⌘E)")
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
@@ -229,7 +214,7 @@ struct ChatView: View {
         .multilineTextAlignment(.center)
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity)
-        .frame(height: 278)
+        .frame(minHeight: welcomeMinHeight, maxHeight: .infinity)
     }
 
     // MARK: - Header pills
@@ -286,7 +271,7 @@ struct ChatView: View {
         .frame(maxWidth: max(headerWidth * 0.46, 140), alignment: .leading)
     }
 
-    // Icon grid (4b): 14pt symbols in fixed 20×20 slots, 8pt gap, 4×8 padding
+    // Icon grid: SVG canvases default to 17pt in fixed 20×20 slots, with an 8pt gap and 4×8 padding
     // ≙ 28pt capsule height; active states are plain circular fills over the
     // slot — no negative margins.
     private var actionPill: some View {
@@ -294,11 +279,7 @@ struct ChatView: View {
             Button {
                 historyShown.toggle()
             } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 14))
-                    .frame(width: 20, height: 20)
-                    .background(historyShown ? Color.primary.opacity(0.14) : .clear, in: Circle())
-                    .contentShape(Circle())
+                headerActionIcon(PopSvg.history, fallback: "clock.arrow.circlepath", size:15,isActive: historyShown)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("y", modifiers: .command)
@@ -309,10 +290,7 @@ struct ChatView: View {
             Button {
                 store.newChat()
             } label: {
-                Image(systemName: "square.and.pencil")
-                    .font(.system(size: 14))
-                    .frame(width: 20, height: 20)
-                    .contentShape(Circle())
+                headerActionIcon(PopSvg.edit, fallback: "square.and.pencil",size:16)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("n", modifiers: .command)
@@ -320,12 +298,7 @@ struct ChatView: View {
             Button {
                 state.pinned.toggle()
             } label: {
-                Image(systemName: state.pinned ? "pin.fill" : "pin")
-                    .font(.system(size: 14))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 20, height: 20)
-                    .background(state.pinned ? Color.primary.opacity(0.14) : .clear, in: Circle())
-                    .contentShape(Circle())
+                headerActionIcon(PopSvg.pin, fallback: "pin", isActive: state.pinned)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("p", modifiers: .command)
@@ -337,6 +310,15 @@ struct ChatView: View {
         .padding(.vertical, 4)
         .pillBackground(hovered: actionPillHovered)
         .onHover { actionPillHovered = $0 }
+    }
+
+    private func headerActionIcon(
+        _ icon: NSImage?, fallback: String, size: CGFloat = 17, isActive: Bool = false
+    ) -> some View {
+        chatIcon(icon, fallback: fallback, size: size)
+            .frame(width: 20, height: 20)
+            .background(isActive ? Color.primary.opacity(0.14) : .clear, in: Circle())
+            .contentShape(Circle())
     }
 
     private var switcherLabel: String {
@@ -353,7 +335,7 @@ struct ChatView: View {
         else { return "Set up a provider…" }
         let model = providerStore.currentModel
         let effort = providerStore.currentReasoningEffort.map { " · \($0)" } ?? ""
-        return "\(provider.name) · \(model.isEmpty ? "no model" : model)\(effort)"
+        return "\(model.isEmpty ? "no model" : model)\(effort)"
     }
 
     // MARK: - Transcript
@@ -381,7 +363,7 @@ struct ChatView: View {
             : nil
         return ScrollViewReader { proxy in
             trackingBottomPin(
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     // Plain VStack, deliberately: LazyVStack re-estimates row heights as
                     // items load during scrolling, and with variable-height text rows the
                     // fluctuating content height fights NSScrollView's position
@@ -769,7 +751,7 @@ struct ChatView: View {
 private struct ContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
+        value += nextValue()
     }
 }
 
@@ -833,7 +815,7 @@ private struct MessageRow: View, Equatable {
     /// Likewise ignored by ==.
     var onRecordException: (ContentCapability) -> Void = { _ in }
 
-    @AppStorage("bubbleStyle") private var bubbleStyleRaw = BubbleStyle.accentTint.rawValue
+    @AppStorage("bubbleStyle") private var bubbleStyleRaw = BubbleStyle.defaultStyle.rawValue
     @AppStorage("accentColor") private var accentHex = Theme.defaultAccentHex
     @Environment(\.colorScheme) private var scheme
     @State private var copied = false
@@ -859,7 +841,7 @@ private struct MessageRow: View, Equatable {
     var body: some View {
         switch message.role {
         case .user:
-            let style = BubbleStyle(rawValue: bubbleStyleRaw) ?? .accentTint
+            let style = BubbleStyle(rawValue: bubbleStyleRaw) ?? BubbleStyle.defaultStyle
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 0) {
                     Spacer(minLength: 0)
@@ -880,7 +862,7 @@ private struct MessageRow: View, Equatable {
                                 attributed: MarkdownRenderer.plain(
                                     message.text,
                                     color: Theme.bubbleForegroundNSColor(
-                                        style: style, accentHex: accentHex)
+                                        style: style, accentHex: accentHex, dark: scheme == .dark)
                                 ),
                                 find: textFind
                             )
@@ -933,18 +915,15 @@ private struct MessageRow: View, Equatable {
                                     copied = false
                                 }
                             } label: {
-                                Label(
-                                    copied ? "Copied" : "Copy",
-                                    systemImage: copied ? "checkmark" : "doc.on.doc"
+                                actionLabel(
+                                    "Copy",
+                                    icon: copied ? PopSvg.copyCheck : PopSvg.copy,
+                                    fallback: copied ? "checkmark" : "doc.on.doc"
                                 )
-                                .padding(.vertical, 2)
-                                .contentShape(Rectangle())
                             }
                             .help("Copy the whole response")
                             Button(action: onFork) {
-                                Label("Fork", systemImage: "arrow.triangle.branch")
-                                    .padding(.vertical, 2)
-                                    .contentShape(Rectangle())
+                                actionLabel("Fork", icon: PopSvg.fork, fallback: "arrow.triangle.branch")
                             }
                             .help("Start a new conversation from this point")
                             if rerunnable {
@@ -1043,17 +1022,24 @@ private struct MessageRow: View, Equatable {
     @ViewBuilder
     private var rerunButtons: some View {
         Button(action: onRetry) {
-            Label("Retry", systemImage: "arrow.clockwise")
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
+            actionLabel("Retry", icon: PopSvg.retry, fallback: "arrow.clockwise")
         }
         .help("Ask again — switch the model in the pill first to retry with a different one")
         Button(action: onEditPrompt) {
-            Label("Edit prompt", systemImage: "pencil")
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
+            actionLabel("Edit", icon: PopSvg.editPrompt, fallback: "pencil")
         }
         .help("Put your last message back in the composer to edit and resend")
+    }
+
+    private func actionLabel(
+        _ title: String, icon: NSImage?, fallback: String, size: CGFloat = 14
+    ) -> some View {
+        HStack(spacing: 3) {
+            chatIcon(icon, fallback: fallback, size: size)
+            Text(title)
+        }
+        .padding(.vertical, 2)
+        .contentShape(Rectangle())
     }
 }
 
@@ -1080,8 +1066,7 @@ private struct ReasoningDisclosure: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
                         .rotationEffect(.degrees(expanded ? 90 : 0))
-                    Image(systemName: "brain")
-                        .font(.system(size: 10))
+                    chatIcon(PopSvg.reasoning, fallback: "brain", size: 13)
                     Text("Reasoning")
                         .font(.system(size: 11, weight: .medium))
                 }
@@ -1241,8 +1226,7 @@ struct ThinkingScroller: NSViewRepresentable {
         let scroll = NSScrollView()
         scroll.documentView = textView
         scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
+        scroll.hasVerticalScroller = false
         // Drops fall through to the panel-wide attachment target.
         textView.unregisterDraggedTypes()
         return scroll

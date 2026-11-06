@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Splash
 import SwiftMath
+import PopSvg
 
 /// Native markdown rendering with real text selection. SwiftUI's `.textSelection`
 /// is per-Text-view (selection can't cross paragraphs), so assistant messages are
@@ -828,11 +829,15 @@ struct CodeBlockView: View {
                     copied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
                 } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(Theme.recessedCaption(dark: dark))
-                        .padding(.vertical, 3)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 3) {
+                        chatIcon(copied ? PopSvg.copyCheck : PopSvg.copy,
+                                 fallback: copied ? "checkmark" : "doc.on.doc", size: 14)
+                        Text("Copy")
+                    }
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Theme.recessedCaption(dark: dark))
+                    .padding(.vertical, 3)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }

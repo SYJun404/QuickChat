@@ -245,7 +245,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 defer: false
             )
             window.title = "PopChat Settings"
-            window.contentView = NSHostingView(rootView: SettingsView(store: providerStore, shortcutStore: shortcutStore, updates: updateChecker))
+            window.contentView = NSHostingView(rootView: SettingsView(
+                store: providerStore, shortcutStore: shortcutStore, updates: updateChecker,
+                onResetWindowSize: { [weak self] in self?.panelController.resetWindowSize() }
+            ))
             window.isReleasedWhenClosed = false
             // The chat panel floats (.floating level); a normal-level Settings
             // window would always open BEHIND it. Same level + orderFront wins.

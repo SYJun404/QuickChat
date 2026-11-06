@@ -5,17 +5,17 @@ import SwiftUI
 // persist via @AppStorage; everything reads them through these helpers so the
 // panel and the Settings preview stay in sync.
 
-/// Removed 2026-07-22: `quietGray`. With a free accent picker it was just
-/// "accent fill with a gray accent", and a stored "quietGray" decodes through
-/// the `?? .accentTint` fallback every call site already had — that IS the
-/// migration.
 enum BubbleStyle: String, CaseIterable, Identifiable {
+    case neutral
     case accentTint
     case accentFill
+
+    static let defaultStyle: Self = .neutral
 
     var id: String { rawValue }
     var label: String {
         switch self {
+        case .neutral: "Gray"
         case .accentTint: "Accent tint"
         case .accentFill: "Accent fill"
         }
@@ -189,21 +189,19 @@ enum Theme {
 
     // Bubble styles — tint = accent at 19% (dark) / 15% (light), fill = accent.
     static func bubbleFill(style: BubbleStyle, accentHex: String, dark: Bool) -> Color {
-        let accent = color(accentHex)
         switch style {
-        case .accentTint: return accent.opacity(dark ? 0.19 : 0.15)
-        case .accentFill: return accent
+        case .neutral: return color(dark ? "#393A3C" : "#E6E7E7")
+        case .accentTint: return color(accentHex).opacity(dark ? 0.19 : 0.15)
+        case .accentFill: return color(accentHex)
         }
     }
 
-    /// Tinted bubbles are mostly panel, so text stays `.primary`; a filled
-    /// bubble takes whichever of black/white the accent can carry.
-    static func bubbleForeground(style: BubbleStyle, accentHex: String) -> Color {
-        style == .accentFill ? contrastingForeground(on: accentHex) : .primary
-    }
-
-    static func bubbleForegroundNSColor(style: BubbleStyle, accentHex: String) -> NSColor {
-        style == .accentFill ? contrastingNSColor(on: accentHex) : .labelColor
+    static func bubbleForegroundNSColor(style: BubbleStyle, accentHex: String, dark: Bool) -> NSColor {
+        switch style {
+        case .neutral: return nsColor(dark ? "#E2E3E4" : "#5E5E5E")
+        case .accentTint: return .labelColor
+        case .accentFill: return contrastingNSColor(on: accentHex)
+        }
     }
 
     static func panelBorder(dark: Bool) -> Color {

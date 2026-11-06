@@ -8,3 +8,4 @@ dist/
 CLAUDE.md
 AGENTS.md
 design/
+.swiftpm/xcode/

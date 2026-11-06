@@ -311,6 +311,8 @@ struct ComposerView: View {
     let shortcutStore: ShortcutStore
     let isStreaming: Bool
     let focusBump: Int
+    let homeStyle: Bool
+    @Binding var pinned: Bool
     @Binding var editorMode: Bool
     let onSend: (String, [Attachment]) -> Void
     let onStop: () -> Void
@@ -332,6 +334,11 @@ struct ComposerView: View {
 
     private var accent: Color { Theme.color(accentHex) }
 
+    private var placeholder: String {
+        if homeStyle { return "Ask anything, or type / for commands…" }
+        return editorMode ? "Write a long prompt…" : "Message…  (“/” for shortcuts)"
+    }
+
     /// Chrome (title row, footer, side buttons) crossfades offset from the
     /// geometry morph so it never smears with the spring.
     private static let chromeFade = AnyTransition.opacity.animation(.easeOut(duration: 0.15))
@@ -346,15 +353,32 @@ struct ComposerView: View {
                 attachCard
                     .transition(.opacity)
             }
-            composerCard
+            HStack(alignment: .bottom, spacing: 6) {
+                if homeStyle {
+                    Button(action: attachViaPicker) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 18, weight: .medium))
+                            .frame(width: 34, height: 34)
+                            .contentShape(Circle())
+                    }
+                    .glassCard(Circle())
+                    .accessibilityLabel("Attach files")
+                    .help("Attach files (or drag & drop, or paste)")
+                }
+                composerCard
+                if homeStyle {
+                    homeCommands
+                }
+            }
+            .buttonStyle(.plain)
             if editorMode {
                 editorFooter
                     .transition(Self.chromeFade)
             }
         }
-        .padding(.top, 10)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 12)
+        .padding(.top, homeStyle ? 0 : 10)
+        .padding(.horizontal, homeStyle ? 7 : 12)
+        .padding(.bottom, homeStyle ? 7 : 12)
         .frame(maxHeight: editorMode ? .infinity : nil)
         .animation(.easeOut(duration: 0.12), value: completionCandidates.isEmpty)
         .animation(.easeOut(duration: 0.12), value: model.pendingAttachments.count)
@@ -432,7 +456,7 @@ struct ComposerView: View {
             // to 15.5pt from the row bottom: the text line's center, and level
             // with the 30pt send slot (center 15).
             HStack(alignment: .bottom, spacing: 10) {
-                if !editorMode {
+                if !editorMode, !homeStyle {
                     attachButton
                         .padding(.bottom, 3.5)
                         .transition(Self.chromeFade)
@@ -444,7 +468,7 @@ struct ComposerView: View {
                     .frame(height: editorMode ? nil : inputHeight)
                     .frame(maxHeight: editorMode ? .infinity : nil)
                     .padding(.vertical, editorMode ? 8 : 5)
-                if !editorMode {
+                if !editorMode, !homeStyle {
                     Button {
                         editorMode = true
                     } label: {
@@ -458,16 +482,41 @@ struct ComposerView: View {
                     .help("Expand editor (⌘E)")
                     .padding(.bottom, 3.5)
                     .transition(Self.chromeFade)
-                    sendOrStopButton(size: 26)
+                }
+                if !editorMode, !homeStyle || canSend || isStreaming {
+                    sendOrStopButton(size: homeStyle ? 20 : 26)
                         .transition(Self.chromeFade)
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.top, editorMode ? 0 : 6)
-            .padding(.bottom, 6)
+            .padding(.top, editorMode ? 0 : (homeStyle ? 1.5 : 6))
+            .padding(.bottom, homeStyle ? 1.5 : 6)
         }
         .buttonStyle(.plain)
         .glassCard(RoundedRectangle(cornerRadius: editorMode ? 18 : 21.5, style: .continuous))
+    }
+
+    private var homeCommands: some View {
+        Menu {
+            Toggle("Web access", isOn: $webEnabled)
+            Toggle("Keep on top", isOn: $pinned)
+            Divider()
+            Button("Browse slash commands") {
+                draft = "/"
+                onFocusRequest()
+            }
+            .disabled(!draft.isEmpty || shortcutStore.shortcuts.isEmpty)
+        } label: {
+            Image(systemName: "command")
+                .font(.system(size: 17, weight: .medium))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .frame(width: 34, height: 34)
+        .glassCard(Circle())
+        .accessibilityLabel("Chat commands")
+        .help("Chat commands")
     }
 
     private var editorFooter: some View {
@@ -552,7 +601,7 @@ struct ComposerView: View {
         )
         .overlay(alignment: .topLeading) {
             if draft.isEmpty {
-                Text(editorMode ? "Write a long prompt…" : "Message…  (“/” for shortcuts)")
+                Text(placeholder)
                     .font(.system(size: 13))
                     .foregroundStyle(.tertiary)
                     .padding(.top, 2)

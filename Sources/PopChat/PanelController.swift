@@ -17,10 +17,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     /// sent" when the panel stops being empty — they get different growth curves.
     private var lastRestoreTick = 0
 
-    // Delta 2 (4a): 520pt min width keeps the header pills from colliding with
-    // long model names; 120pt empty-min gives the input capsule breathing room.
+    // Reserve enough space for the welcome screen before the first layout pass.
     private static let minWidth: CGFloat = 520
-    private static let compactMinHeight: CGFloat = 120
+    private static let compactMinHeight: CGFloat = 369
     private static let expandedMinHeight: CGFloat = 320
     private static let defaultExpandedHeight: CGFloat = 440
     private static let defaultWidth: CGFloat = 580
@@ -48,7 +47,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         set { UserDefaults.standard.set(newValue, forKey: "panelWidth") }
     }
 
-    /// The live minimum content size — 520×320 with messages, 520×120 empty (4a).
+    /// The live minimum content size — 520×320 with messages, 520×369 on the welcome screen.
     private var minContentSize: NSSize {
         NSSize(
             width: Self.minWidth,
@@ -199,6 +198,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     func hide() {
         guard panel.isVisible, !isHiding else { return }
         isHiding = true
+        panel.stopDragGuides()
         if !reduceMotion, let layer = panel.contentView?.layer {
             let shrink = Self.transformAnimation(
                 from: CATransform3DIdentity,

@@ -19,7 +19,7 @@ struct ChatView: View {
     @ObservedObject var shortcutStore: ShortcutStore
     var onClose: () -> Void
     /// Reports the natural content height while the chat is empty, so the panel
-    /// can shrink to just chrome + input.
+    /// can fit the welcome screen and the growing composer.
     var onCompactHeightChange: (CGFloat) -> Void = { _ in }
 
     @State private var composerModel = ComposerModel()
@@ -56,6 +56,9 @@ struct ChatView: View {
 
     private var accent: Color { Theme.color(accentHex) }
 
+    private var showsHome: Bool { store.messages.isEmpty && !draftEditorShown }
+    private let panelShape = RoundedRectangle(cornerRadius: 24, style: .continuous)
+
     var body: some View {
         VStack(spacing: 0) {
             mainContent
@@ -65,16 +68,16 @@ struct ChatView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background { PanelGlassBackground() }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(panelShape)
         .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            panelShape
                 .strokeBorder(Theme.panelBorder(dark: scheme == .dark), lineWidth: 0.5)
         )
         .overlay {
             if dropTargeted {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                panelShape
                     .strokeBorder(accent, lineWidth: 3)
-                    .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(accent.opacity(0.08), in: panelShape)
                     .allowsHitTesting(false)
             }
         }
@@ -118,7 +121,10 @@ struct ChatView: View {
         VStack(spacing: 0) {
             // The ⌘E editor keeps the header pills visible (4d); only the
             // transcript hides while it's open.
-            if store.messages.isEmpty || draftEditorShown {
+            if showsHome {
+                homeHeader
+                homeWelcome
+            } else if draftEditorShown {
                 pillsRow
                     .padding(12)
                     .background(WindowDragStrip())
@@ -131,6 +137,8 @@ struct ChatView: View {
                 shortcutStore: shortcutStore,
                 isStreaming: store.isStreaming,
                 focusBump: state.focusBump,
+                homeStyle: showsHome,
+                pinned: $state.pinned,
                 editorMode: $draftEditorShown,
                 onSend: { text, attachments in store.send(text, attachments: attachments) },
                 onStop: { store.stop() },
@@ -148,6 +156,80 @@ struct ChatView: View {
                 onCompactHeightChange(height)
             }
         }
+    }
+
+    // MARK: - New chat home
+
+    private var homeHeader: some View {
+        HStack(spacing: 10) {
+            Button {
+                historyShown.toggle()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 25, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .keyboardShortcut("y", modifiers: .command)
+            .accessibilityLabel("Recent chats")
+            .help("Recent chats (⌘Y)")
+            .popover(isPresented: $historyShown, arrowEdge: .bottom) {
+                HistoryPopover(store: store)
+            }
+
+            Button {
+                switcherShown.toggle()
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Chat")
+                        .font(.system(size: 13, weight: .medium))
+                    Text(switcherLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                }
+                .contentShape(Rectangle())
+            }
+            .help("Choose provider and model")
+            .popover(isPresented: $switcherShown, arrowEdge: .bottom) {
+                ProviderSwitcher(store: providerStore)
+            }
+
+            Spacer(minLength: 8)
+
+            Button {
+                draftEditorShown = true
+            } label: {
+                Image(systemName: "arrow.up.forward.app")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(width: 28, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .keyboardShortcut("e", modifiers: .command)
+            .accessibilityLabel("Expand draft editor")
+            .help("Expand editor (⌘E)")
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(WindowDragStrip())
+        .keyCommand("n") { store.newChat() }
+        .keyCommand("p") { state.pinned.toggle() }
+    }
+
+    private var homeWelcome: some View {
+        VStack(spacing: 8) {
+            Text("Ask Anything")
+                .font(.system(size: 25, weight: .bold))
+                .accessibilityAddTraits(.isHeader)
+            Text("The quickest way to ask AI, right in the launcher.")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+        .frame(height: 278)
     }
 
     // MARK: - Header pills
@@ -267,7 +349,8 @@ struct ChatView: View {
         // conversation. (Cheap per render: secrets and tokens are memory-cached,
         // the rest are dictionary lookups.)
         guard let provider = providerStore.selectedProvider,
-              providerStore.hasSetupEvidence(provider) else { return "Set up a provider…" }
+            providerStore.hasSetupEvidence(provider)
+        else { return "Set up a provider…" }
         let model = providerStore.currentModel
         let effort = providerStore.currentReasoningEffort.map { " · \($0)" } ?? ""
         return "\(provider.name) · \(model.isEmpty ? "no model" : model)\(effort)"
@@ -276,7 +359,8 @@ struct ChatView: View {
     // MARK: - Transcript
 
     private var transcriptZone: some View {
-        let streamingID = store.isStreaming ? store.messages.last(where: { $0.role == .assistant })?.id : nil
+        let streamingID =
+            store.isStreaming ? store.messages.last(where: { $0.role == .assistant })?.id : nil
         let revealingID: UUID? = store.reveal?.messageID
         let revealFade: TextReveal? = store.reveal?.fade
         let bubbleMaxWidth = max(220, (transcriptWidth - 32) * 0.78)
@@ -291,7 +375,8 @@ struct ChatView: View {
         // EMPTY has its row removed by the streamTask tail, which can leave a
         // gray "searched the web" line last, and that is precisely the moment
         // the user needs Retry.
-        let rerunID: UUID? = store.canRerunLastTurn
+        let rerunID: UUID? =
+            store.canRerunLastTurn
             ? store.messages.last(where: { $0.role != .activity })?.id
             : nil
         return ScrollViewReader { proxy in
@@ -309,34 +394,38 @@ struct ChatView: View {
                             let revealing: Bool = id == revealingID
                             // Nil for messages with no hit, so every other row
                             // stays Equatable-gated while typing.
-                            let rowFind: MessageFind? = matchedIDs.contains(id)
+                            let rowFind: MessageFind? =
+                                matchedIDs.contains(id)
                                 ? MessageFind(
                                     query: query,
-                                    activeOccurrence: activeHit?.messageID == id ? activeHit?.occurrence : nil
+                                    activeOccurrence: activeHit?.messageID == id
+                                        ? activeHit?.occurrence : nil
                                 )
                                 : nil
                             // Nil for every row but the still-empty streaming one
                             // (same gating trick as `find`), so status updates
                             // repaint exactly one row.
-                            let waiting: String? = id == streamingID && message.text.isEmpty
+                            let waiting: String? =
+                                id == streamingID && message.text.isEmpty
                                 ? (store.pendingStatus ?? "Thinking…")
                                 : nil
                             // Nil for every row but that same one, so the
                             // thinking arriving at wire rate repaints exactly
                             // one row (the `find` gating trick again).
-                            let waitingReasoning: String? = waiting == nil
+                            let waitingReasoning: String? =
+                                waiting == nil
                                 ? nil
                                 : store.pendingReasoning
                             // Nil for every row but the one unattributed-failure
                             // error row (same gating trick again).
                             let capabilityAction: MessageRow.CapabilityAction? =
                                 store.capabilityFailure?.errorMessageID == id
-                                    ? store.capabilityFailure.map {
-                                        MessageRow.CapabilityAction(
-                                            model: $0.model, images: $0.sentImages, files: $0.sentFiles
-                                        )
-                                    }
-                                    : nil
+                                ? store.capabilityFailure.map {
+                                    MessageRow.CapabilityAction(
+                                        model: $0.model, images: $0.sentImages, files: $0.sentFiles
+                                    )
+                                }
+                                : nil
                             MessageRow(
                                 message: message,
                                 rerunnable: id == rerunID,
@@ -415,7 +504,10 @@ struct ChatView: View {
                 }
             }
             .animation(.easeOut(duration: 0.15), value: showNewMessagesPill)
-            .animation(reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.18), value: store.messages.count)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.18),
+                value: store.messages.count
+            )
             // Text ticks arrive many times per second while streaming: the
             // follow-scroll must NOT be animated, or each tick restarts an
             // animation and layout never goes idle (this froze the app).
@@ -429,7 +521,9 @@ struct ChatView: View {
             }
             .onChange(of: store.messages.count) { _, _ in
                 if pinnedToBottom {
-                    withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo("bottom", anchor: .bottom)
+                    }
                 } else {
                     showNewMessagesPill = true
                 }
@@ -480,7 +574,7 @@ struct ChatView: View {
         if findShown {
             closeFind()
         } else {
-            guard !store.messages.isEmpty else { return } // nothing to search
+            guard !store.messages.isEmpty else { return }  // nothing to search
             findShown = true
             findIndex = 0
             findFocusBump += 1
@@ -491,13 +585,13 @@ struct ChatView: View {
         findShown = false
         findQuery = ""
         findIndex = 0
-        state.focusBump += 1 // hand the caret back to the composer
+        state.focusBump += 1  // hand the caret back to the composer
     }
 
     private func stepMatch(_ delta: Int) {
         let count = findHits.count
         guard count > 0 else { return }
-        findIndex = ((findIndex + delta) % count + count) % count // wraps both ways
+        findIndex = ((findIndex + delta) % count + count) % count  // wraps both ways
     }
 
     /// Coarse fallback only. Rows that render real text views scroll themselves
@@ -505,8 +599,9 @@ struct ChatView: View {
     /// message here as well would fight that with a second, less precise jump.
     private func scrollToMatch(_ hit: FindHit?, _ proxy: ScrollViewProxy) {
         guard let hit,
-              let message = store.messages.first(where: { $0.id == hit.messageID }),
-              message.role == .activity || message.role == .error else { return }
+            let message = store.messages.first(where: { $0.id == hit.messageID }),
+            message.role == .activity || message.role == .error
+        else { return }
         proxy.scrollTo(hit.messageID, anchor: .center)
     }
 
@@ -542,8 +637,12 @@ struct ChatView: View {
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .fixedSize()
-            findStepButton("chevron.up", modifiers: [.command, .shift], enabled: matchCount > 0) { stepMatch(-1) }
-            findStepButton("chevron.down", modifiers: .command, enabled: matchCount > 0) { stepMatch(1) }
+            findStepButton("chevron.up", modifiers: [.command, .shift], enabled: matchCount > 0) {
+                stepMatch(-1)
+            }
+            findStepButton("chevron.down", modifiers: .command, enabled: matchCount > 0) {
+                stepMatch(1)
+            }
             Button(action: closeFind) {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .semibold))
@@ -606,20 +705,24 @@ struct ChatView: View {
     @ViewBuilder
     private func trackingBottomPin(_ content: some View) -> some View {
         if #available(macOS 15.0, *) {
-            content.onScrollGeometryChange(for: ScrollPin.self, of: { geometry in
-                ScrollPin(
-                    offset: geometry.contentOffset.y.rounded(),
-                    bottomDistance: (geometry.contentSize.height - geometry.containerSize.height - geometry.contentOffset.y).rounded()
-                )
-            }, action: { old, new in
-                if new.bottomDistance <= 40 {
-                    if !pinnedToBottom { pinnedToBottom = true }
-                } else if new.offset < old.offset - 4 {
-                    if pinnedToBottom { pinnedToBottom = false }
-                }
-            })
+            content.onScrollGeometryChange(
+                for: ScrollPin.self,
+                of: { geometry in
+                    ScrollPin(
+                        offset: geometry.contentOffset.y.rounded(),
+                        bottomDistance: (geometry.contentSize.height - geometry.containerSize.height
+                            - geometry.contentOffset.y).rounded()
+                    )
+                },
+                action: { old, new in
+                    if new.bottomDistance <= 40 {
+                        if !pinnedToBottom { pinnedToBottom = true }
+                    } else if new.offset < old.offset - 4 {
+                        if pinnedToBottom { pinnedToBottom = false }
+                    }
+                })
         } else {
-            content // macOS 14: always follow (previous behavior)
+            content  // macOS 14: always follow (previous behavior)
         }
     }
 
@@ -643,10 +746,12 @@ struct ChatView: View {
                 dark ? Theme.color("#2C2C30").opacity(0.95) : Theme.color("#FCFCFE").opacity(0.97),
                 in: Capsule()
             )
-            .overlay(Capsule().strokeBorder(
-                dark ? Color.white.opacity(0.16) : Color.black.opacity(0.10),
-                lineWidth: 0.5
-            ))
+            .overlay(
+                Capsule().strokeBorder(
+                    dark ? Color.white.opacity(0.16) : Color.black.opacity(0.10),
+                    lineWidth: 0.5
+                )
+            )
             .shadow(
                 color: dark ? .black.opacity(0.4) : Theme.color("#282850").opacity(0.18),
                 radius: 12, y: 8
@@ -763,16 +868,19 @@ private struct MessageRow: View, Equatable {
                             ForEach(message.attachments) { attachment in
                                 Label(attachment.filename, systemImage: "paperclip")
                                     .font(.system(size: 11))
-                                    .foregroundStyle(style == .accentFill
-                                        ? Theme.contrastingForeground(on: accentHex).opacity(0.75)
-                                        : Color.secondary)
+                                    .foregroundStyle(
+                                        style == .accentFill
+                                            ? Theme.contrastingForeground(on: accentHex).opacity(
+                                                0.75)
+                                            : Color.secondary)
                             }
                         }
                         if !message.text.isEmpty {
                             SelectableText(
                                 attributed: MarkdownRenderer.plain(
                                     message.text,
-                                    color: Theme.bubbleForegroundNSColor(style: style, accentHex: accentHex)
+                                    color: Theme.bubbleForegroundNSColor(
+                                        style: style, accentHex: accentHex)
                                 ),
                                 find: textFind
                             )
@@ -821,11 +929,16 @@ private struct MessageRow: View, Equatable {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(fullText(), forType: .string)
                                 copied = true
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                    copied = false
+                                }
                             } label: {
-                                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                                    .padding(.vertical, 2)
-                                    .contentShape(Rectangle())
+                                Label(
+                                    copied ? "Copied" : "Copy",
+                                    systemImage: copied ? "checkmark" : "doc.on.doc"
+                                )
+                                .padding(.vertical, 2)
+                                .contentShape(Rectangle())
                             }
                             .help("Copy the whole response")
                             Button(action: onFork) {
@@ -860,20 +973,24 @@ private struct MessageRow: View, Equatable {
                 }
             }
         case .activity:
-            Label { Text(FindHighlight.paint(message.text, find: textFind)) } icon: {
+            Label {
+                Text(FindHighlight.paint(message.text, find: textFind))
+            } icon: {
                 Image(systemName: "sparkles")
             }
-                .font(.system(size: 11))
-                .foregroundStyle(.primary.opacity(0.5))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.system(size: 11))
+            .foregroundStyle(.primary.opacity(0.5))
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .error:
             VStack(alignment: .leading, spacing: 6) {
-                Label { Text(FindHighlight.paint(message.text, find: textFind)) } icon: {
+                Label {
+                    Text(FindHighlight.paint(message.text, find: textFind))
+                } icon: {
                     Image(systemName: "exclamationmark.triangle.fill")
                 }
-                    .font(.callout)
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
+                .font(.callout)
+                .foregroundStyle(.red)
+                .textSelection(.enabled)
                 if let action = capabilityAction {
                     HStack(spacing: 12) {
                         if action.images {
@@ -1172,13 +1289,17 @@ struct ThinkingScroller: NSViewRepresentable {
     }
 
     private func rendered(_ string: String) -> NSAttributedString {
-        NSAttributedString(string: Self.stripEmphasis(string), attributes: [
-            .font: Self.font,
-            .foregroundColor: NSColor.secondaryLabelColor,
-        ])
+        NSAttributedString(
+            string: Self.stripEmphasis(string),
+            attributes: [
+                .font: Self.font,
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ])
     }
 
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context)
+        -> CGSize?
+    {
         CGSize(width: proposal.width ?? 320, height: Self.height(lines: lines))
     }
 }

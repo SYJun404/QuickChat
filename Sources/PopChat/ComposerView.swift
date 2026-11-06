@@ -1,6 +1,19 @@
 import SwiftUI
 import AppKit
 
+struct SlashMenuPreference: PreferenceKey {
+    struct Presentation {
+        let bounds: Anchor<CGRect>
+        let menu: (CGFloat) -> AnyView
+    }
+
+    static let defaultValue: Presentation? = nil
+
+    static func reduce(value: inout Presentation?, nextValue: () -> Presentation?) {
+        value = nextValue() ?? value
+    }
+}
+
 /// Attachment state lives here so drops (handled at the panel root) and the
 /// composer share it without the root view observing keystrokes.
 @MainActor
@@ -328,10 +341,6 @@ struct ComposerView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if !completionCandidates.isEmpty {
-                slashCard
-                    .transition(.opacity)
-            }
             if !model.pendingAttachments.isEmpty || model.attachNotice != nil {
                 attachCard
                     .transition(.opacity)
@@ -342,9 +351,14 @@ struct ComposerView: View {
             }
             .buttonStyle(.plain)
         }
+        .anchorPreference(key: SlashMenuPreference.self, value: .bounds) { bounds in
+            guard !completionCandidates.isEmpty else { return nil }
+            return SlashMenuPreference.Presentation(bounds: bounds) { availableHeight in
+                AnyView(slashCard(availableHeight: availableHeight))
+            }
+        }
         .padding(.top, 10)
         .padding([.horizontal, .bottom], 7)
-        .animation(.easeOut(duration: 0.12), value: completionCandidates.isEmpty)
         .animation(.easeOut(duration: 0.12), value: model.pendingAttachments.count)
         .animation(.easeOut(duration: 0.12), value: model.attachNotice)
         .onChange(of: draft) { _, newValue in
@@ -527,30 +541,49 @@ struct ComposerView: View {
         }
     }
 
-    private var slashCard: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            ForEach(Array(completionCandidates.enumerated()), id: \.element.id) { index, shortcut in
-                HStack(spacing: 8) {
-                    Text("/" + shortcut.name)
-                        .fontWeight(.medium)
-                    Text(shortcut.template.replacingOccurrences(of: "\n", with: " "))
+    private func slashCard(availableHeight: CGFloat) -> some View {
+        let candidates = completionCandidates
+        let rowHeight: CGFloat = 28
+        let rowSpacing: CGFloat = 2
+        let listHeight = CGFloat(candidates.count) * (rowHeight + rowSpacing) - rowSpacing
+        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        let padding: CGFloat = 6
+        let viewportHeight = min(listHeight, 7 * (rowHeight + rowSpacing) - rowSpacing,
+                                 max(0, availableHeight - 2 * padding))
+
+        return ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: rowSpacing) {
+                    ForEach(Array(candidates.enumerated()), id: \.element.id) { index, shortcut in
+                        HStack(spacing: 8) {
+                            Text("/" + shortcut.name)
+                                .fontWeight(.medium)
+                                .layoutPriority(1)
+                            Text(shortcut.template.replacingOccurrences(of: "\n", with: " "))
+                                .foregroundStyle(.secondary)
+                        }
+                        .font(.system(size: 12.5))
                         .lineLimit(1)
-                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(height: rowHeight)
+                        .background(index == completionIndex ? accent.opacity(0.16) : .clear, in: Capsule())
+                        .contentShape(Capsule())
+                        .onTapGesture { complete(with: shortcut) }
+                    }
                 }
-                .font(.system(size: 12.5))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    index == completionIndex ? accent.opacity(0.16) : .clear,
-                    in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture { complete(with: shortcut) }
+            }
+            .onChange(of: completionIndex) { _, index in
+                if candidates.indices.contains(index) {
+                    proxy.scrollTo(candidates[index].id)
+                }
             }
         }
-        .padding(6)
-        .glassCard(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .frame(height: viewportHeight)
+        .padding(padding)
+        .clipShape(shape)
+        .background(.thickMaterial, in: shape)
+        .glassCard(shape)
     }
 
     private func complete(with shortcut: PromptShortcut? = nil) {

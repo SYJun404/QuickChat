@@ -56,7 +56,8 @@ enum FindHighlight {
         guard !matches.isEmpty else { return attributed }
         let painted = NSMutableAttributedString(attributedString: attributed)
         for (index, range) in matches.enumerated() {
-            painted.addAttribute(.backgroundColor, value: fill(active: index == find.active), range: range)
+            painted.addAttribute(
+                .backgroundColor, value: fill(active: index == find.active), range: range)
         }
         return painted
     }
@@ -67,9 +68,11 @@ enum FindHighlight {
         guard let find, !find.query.isEmpty else { return attributed }
         for (index, range) in ranges(in: text, query: find.query).enumerated() {
             guard let bounds = Range(range, in: text),
-                  let lower = AttributedString.Index(bounds.lowerBound, within: attributed),
-                  let upper = AttributedString.Index(bounds.upperBound, within: attributed) else { continue }
-            attributed[lower..<upper].backgroundColor = Color(nsColor: fill(active: index == find.active))
+                let lower = AttributedString.Index(bounds.lowerBound, within: attributed),
+                let upper = AttributedString.Index(bounds.upperBound, within: attributed)
+            else { continue }
+            attributed[lower..<upper].backgroundColor = Color(
+                nsColor: fill(active: index == find.active))
         }
         return attributed
     }

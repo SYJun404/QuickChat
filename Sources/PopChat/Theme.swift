@@ -267,6 +267,7 @@ struct VisualEffectBackground: NSViewRepresentable {
 /// wins. `panelTint` of -1 means "follow the system glass appearance"; 0–1 maps
 /// to a fill opacity layered behind the blur.
 struct PanelGlassBackground: View {
+    var cornerRadius: CGFloat = 24
     @AppStorage("liquidGlass") private var liquidGlass = true
     @AppStorage("panelTint") private var panelTint = -1.0
     @Environment(\.colorScheme) private var scheme
@@ -287,9 +288,9 @@ struct PanelGlassBackground: View {
                     // transparent → strongly tinted (`regular`'s inherent frosting
                     // put a floor under how clear the panel could get).
                     if panelTint >= 0 {
-                        Color.clear.glassEffect(.clear, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        Color.clear.glassEffect(.clear, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     } else {
-                        Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        Color.clear.glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     }
                 } else {
                     VisualEffectBackground()

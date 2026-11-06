@@ -40,7 +40,10 @@ final class ChatStore: ObservableObject {
     /// copy is committed to `ChatMessage.reasoning` separately.
     @Published private(set) var pendingReasoning: String?
     @Published private(set) var recent: [ConversationMeta] = []
-    private(set) var conversationID = UUID()
+    private(set) var conversationID = UUID() {
+        didSet { lastSentPromptID = nil }
+    }
+    private(set) var lastSentPromptID: UUID?
 
     /// Cross-chat search corpus, built once and reused until the stored set
     /// changes. It lives here rather than in the history popover because this is
@@ -195,6 +198,11 @@ final class ChatStore: ObservableObject {
         UserDefaults.standard.string(forKey: "systemPrompt") ?? defaultSystemPrompt
     }
 
+    private func appendSentPrompt(_ message: ChatMessage) {
+        lastSentPromptID = message.id
+        messages.append(message)
+    }
+
     func send(_ text: String, attachments: [Attachment] = []) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !attachments.isEmpty, !isStreaming else { return }
@@ -214,7 +222,7 @@ final class ChatStore: ObservableObject {
             let name = String(body.prefix { !$0.isWhitespace })
             let input = String(body.dropFirst(name.count)).trimmingCharacters(in: .whitespaces)
             guard let shortcut = shortcutStore.match(name: name) else {
-                messages.append(ChatMessage(role: .user, text: text))
+                appendSentPrompt(ChatMessage(role: .user, text: text))
                 messages.append(ChatMessage(
                     role: .error,
                     text: "Unknown shortcut “/\(name)”. Define it in Settings → Slash Commands, or escape the leading slash."
@@ -225,7 +233,7 @@ final class ChatStore: ObservableObject {
             wireText = shortcut.expand(input: input)
         }
 
-        messages.append(ChatMessage(role: .user, text: text, wireText: wireText, attachments: attachments))
+        appendSentPrompt(ChatMessage(role: .user, text: text, wireText: wireText, attachments: attachments))
 
         // Explicit-warning policy: catch misconfiguration up front, with a pointer to
         // the fix, rather than surfacing an opaque HTTP failure.
@@ -824,6 +832,7 @@ final class ChatStore: ObservableObject {
             forkMessageID = nil
             sharedPrefixCount = 0
         }
+        lastSentPromptID = nil
         messages = Array(messages.prefix(count))
         if messages.isEmpty {
             // persist() skips empty conversations, so the file would otherwise

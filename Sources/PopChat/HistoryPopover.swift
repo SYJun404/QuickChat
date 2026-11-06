@@ -53,14 +53,14 @@ struct HistoryPopover: View {
     /// Fixed geometry, so the popover's height is known before it is presented
     /// and never changes afterwards (5c).
     private enum Metrics {
-        static let width: CGFloat = 300
-        static let rowWithSnippet: CGFloat = 46
-        static let rowPlain: CGFloat = 30
-        static let groupHeader: CGFloat = 20
-        static let itemSpacing: CGFloat = 2
-        static let listInset: CGFloat = 8
-        static let maxListHeight: CGFloat = 380
-        static let emptyHeight: CGFloat = 56
+        static let width: CGFloat = 368
+        static let rowWithSnippet: CGFloat = 56
+        static let rowPlain: CGFloat = 44
+        static let groupHeader: CGFloat = 24
+        static let itemSpacing: CGFloat = 3
+        static let listInset: CGFloat = 12
+        static let maxListHeight: CGFloat = 360
+        static let emptyHeight: CGFloat = 116
         /// History rows are cheap, but not free — the filter trims anything past
         /// this and the list stays a plain VStack.
         static let renderCap = 40
@@ -68,18 +68,25 @@ struct HistoryPopover: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            filterRow
+            VStack(alignment: .leading, spacing: 10) {
+                header
+                filterRow
+            }
+            .padding(14)
+
             Divider()
             if visible.isEmpty {
-                Text(store.recent.isEmpty ? "No saved chats" : "No matches")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .frame(height: Metrics.emptyHeight)
+                emptyState
             } else {
                 list
+                Divider()
+                keyboardHints
             }
         }
         .frame(width: Metrics.width)
+        // The native popover supplies the outline, including its arrow.
+        .background { PanelGlassBackground(cornerRadius: 0) }
+        .presentationBackground(.clear)
         // Pop from the clock pill rather than materialize: origin top-right,
         // scale 0.92→1, y −6→0. Reduce Motion collapses it to opacity only.
         .scaleEffect(appeared || reduceMotion ? 1 : 0.92, anchor: .topTrailing)
@@ -102,15 +109,76 @@ struct HistoryPopover: View {
         .onChange(of: store.recent) { _, _ in recompute() }
     }
 
-    // The filter row lands with the shell — only the list rows cascade.
+    private var accent: Color { Theme.color(accentHex) }
+
+    private var header: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(accent)
+                .accessibilityHidden(true)
+            Text("Recent Chats")
+                .font(.system(size: 15, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            Text(filter.isEmpty ? "\(store.recent.count) saved" : "\(results.count) found")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+
+    private var emptyState: some View {
+        let hasHistory = !store.recent.isEmpty
+        return VStack(spacing: 6) {
+            Image(systemName: hasHistory ? "magnifyingglass" : "bubble.left.and.bubble.right")
+                .font(.system(size: 19))
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(hasHistory ? "No matching chats" : "No saved chats")
+                .font(.system(size: 13, weight: .semibold))
+            Text(hasHistory ? "Try a different search term." : "Your conversations will appear here.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: Metrics.emptyHeight)
+    }
+
+    private var keyboardHints: some View {
+        HStack(spacing: 14) {
+            keyboardHint("↑ ↓", "Navigate")
+            keyboardHint("↵", "Open")
+            Spacer(minLength: 0)
+            keyboardHint("⌘ F", "Search")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .accessibilityHidden(true)
+    }
+
+    private func keyboardHint(_ keys: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(keys)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+                .font(.system(size: 10.5))
+        }
+        .foregroundStyle(.secondary)
+    }
+
     private var filterRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             KeyRoutingTextField(
                 text: $filter,
                 placeholder: "Search chats…",
+                fontSize: 12,
                 focusBump: filterFocusBump,
                 onMoveUp: { moveSelection(-1) },
                 onMoveDown: { moveSelection(1) },
@@ -120,10 +188,27 @@ struct HistoryPopover: View {
                     return true
                 }
             )
-            .frame(height: 16)
+            .frame(height: 18)
+            if !filter.isEmpty {
+                Button {
+                    filter = ""
+                    filterFocusBump += 1
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 9))
+        .overlay {
+            RoundedRectangle(cornerRadius: 9)
+                .strokeBorder(.primary.opacity(0.08), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
     }
 
     private var list: some View {
@@ -231,77 +316,95 @@ struct HistoryPopover: View {
         // Only one row may carry the ⌘⌫ equivalent at a time: hover wins while
         // the mouse is over the list, keyboard selection owns it otherwise.
         let ownsDelete = isHovered || (isSelected && hoveredID == nil)
-        return Button {
-            open(meta)
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    if meta.isFork {
-                        Image(systemName: "arrow.triangle.branch")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .help("Forked conversation")
-                    }
-                    Text(meta.title)
-                        .font(.system(size: 12.5, weight: isCurrent ? .semibold : .regular))
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    if ownsDelete {
-                        Button {
-                            store.deleteConversation(meta.id)
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 20, height: 20)
-                                .contentShape(Circle())
+        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        return HStack(spacing: 0) {
+            Button {
+                open(meta)
+            } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: meta.isFork ? "arrow.triangle.branch" : "bubble.left")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isCurrent ? accent : .secondary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            isCurrent ? accent.opacity(0.13) : .primary.opacity(0.055),
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 5) {
+                            Text(meta.title)
+                                .font(.system(size: 12.5, weight: .medium))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                            if isCurrent {
+                                Text("Current")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(accent)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(accent.opacity(0.11), in: Capsule())
+                                    .fixedSize()
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .keyboardShortcut(.delete, modifiers: .command)
-                        .help("Delete chat (⌘⌫)")
-                    } else if isCurrent {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(Theme.color(accentHex))
+                        if !result.subtitle.isEmpty {
+                            Text(FindHighlight.paint(
+                                result.subtitle,
+                                find: filter.isEmpty ? nil : TextFind(query: filter, active: nil)
+                            ))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
                     Text(timestamp(meta.updatedAt))
                         .font(.system(size: 10))
-                        .foregroundStyle(.primary.opacity(0.45))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                        .fixedSize()
                 }
-                if !result.subtitle.isEmpty {
-                    // Painted with the same highlighter as ⌘F, so a body hit
-                    // shows WHERE it matched rather than just that it did.
-                    Text(FindHighlight.paint(
-                        result.subtitle,
-                        find: filter.isEmpty ? nil : TextFind(query: filter, active: nil)
-                    ))
+                .padding(.leading, 8)
+                .padding(.trailing, 5)
+                .frame(height: rowHeight(result))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if ownsDelete {
+                Button {
+                    store.deleteConversation(meta.id)
+                } label: {
+                    Image(systemName: "trash")
                         .font(.system(size: 11))
-                        .foregroundStyle(.primary.opacity(0.55))
-                        .lineLimit(1)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.delete, modifiers: .command)
+                .help("Delete chat (⌘⌫)")
+                .accessibilityLabel("Delete \(meta.title)")
+            } else {
+                Color.clear.frame(width: 24, height: 24)
             }
-            .padding(.horizontal, 8)
-            // Fixed height, not padding: the popover's total height is computed
-            // from these before it is presented (5c).
-            .frame(height: rowHeight(result), alignment: .leading)
-            .background(
-                isPressed ? Theme.color(accentHex).opacity(0.34)
-                    : isCurrent ? Theme.color(accentHex).opacity(0.16)
-                    : isHovered || isSelected ? Color.primary.opacity(0.06)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-            )
-            // Keyboard selection reads as a ring so it stays distinguishable
-            // from "this is the open chat" (accent fill) and hover.
-            .overlay {
-                if isSelected {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(Theme.color(accentHex).opacity(0.7), lineWidth: 1)
-                }
-            }
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.trailing, 4)
+        .background(
+            isPressed ? accent.opacity(0.28)
+                : isCurrent ? accent.opacity(0.08)
+                : isHovered || isSelected ? .primary.opacity(0.055)
+                : .clear,
+            in: shape
+        )
+        .overlay {
+            if isSelected {
+                shape.strokeBorder(accent.opacity(0.58), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+        }
         .id(meta.id)
         .onHover { inside in
             if inside {

@@ -45,6 +45,9 @@ struct ChatView: View {
     /// scroll disengages so streaming never yanks the view.
     @State private var pinnedToBottom = true
     @State private var showNewMessagesPill = false
+    @State private var promptScrollOverride: PromptScrollOverride?
+    @State private var visiblePromptID: UUID?
+    @State private var nearTranscriptBottom = true
     // ⌘F find-in-chat. Hits are counted over DISPLAYED text and painted in
     // place (Find.swift); the transcript scrolls to the matched characters, not
     // to the message. Only rows that contain a hit get a MessageFind, so every
@@ -67,6 +70,13 @@ struct ChatView: View {
     private var showsHome: Bool { store.messages.isEmpty }
     private let panelShape = RoundedRectangle(cornerRadius: 24, style: .continuous)
     private let welcomeMinHeight: CGFloat = 368
+    private let headerPillSpacing: CGFloat = 12
+    private let headerActionSlotSize: CGFloat = 20
+    private let headerActionVerticalPadding: CGFloat = 4
+
+    private var transcriptTopInset: CGFloat {
+        headerActionSlotSize + 2 * (headerActionVerticalPadding + headerPillSpacing)
+    }
 
     var body: some View {
         mainContent
@@ -145,6 +155,20 @@ struct ChatView: View {
                 // The welcome area absorbs spare space. Measure its minimum
                 // rather than the current window height so the panel can shrink.
                 onCompactHeightChange(height + welcomeMinHeight)
+            }
+        }
+        .overlayPreferenceValue(SlashMenuPreference.self) { popup in
+            if let popup {
+                GeometryReader { geometry in
+                    let composer = geometry[popup.bounds]
+                    let menuBottom = composer.minY - 8
+                    let availableHeight = menuBottom - transcriptTopInset
+                    if availableHeight > 12 {
+                        popup.menu(availableHeight)
+                            .frame(width: composer.width, height: availableHeight, alignment: .bottom)
+                            .offset(x: composer.minX, y: transcriptTopInset)
+                    }
+                }
             }
         }
     }
@@ -307,7 +331,7 @@ struct ChatView: View {
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.vertical, headerActionVerticalPadding)
         .pillBackground(hovered: actionPillHovered)
         .onHover { actionPillHovered = $0 }
     }
@@ -316,7 +340,7 @@ struct ChatView: View {
         _ icon: NSImage?, fallback: String, size: CGFloat = 17, isActive: Bool = false
     ) -> some View {
         chatIcon(icon, fallback: fallback, size: size)
-            .frame(width: 20, height: 20)
+            .frame(width: headerActionSlotSize, height: headerActionSlotSize)
             .background(isActive ? Color.primary.opacity(0.14) : .clear, in: Circle())
             .contentShape(Circle())
     }
@@ -341,6 +365,12 @@ struct ChatView: View {
     // MARK: - Transcript
 
     private var transcriptZone: some View {
+        let promptID = store.lastSentPromptID
+        let promptTarget = promptID.map(PromptScrollTarget.init)
+        let followsBottom = promptID == nil || promptScrollOverride == promptID.map(PromptScrollOverride.followBottom)
+        let stoppedAtPrompt = promptID != nil && promptScrollOverride == promptID.map(PromptScrollOverride.stopped)
+        let showsJumpToBottom = !nearTranscriptBottom
+            && (showNewMessagesPill || (!followsBottom && (stoppedAtPrompt || !pinnedToBottom)))
         let streamingID =
             store.isStreaming ? store.messages.last(where: { $0.role == .assistant })?.id : nil
         let revealingID: UUID? = store.reveal?.messageID
@@ -428,13 +458,64 @@ struct ChatView: View {
                                 onRecordException: { store.recordManualCapabilityException($0) }
                             )
                             .equatable()
-                            .transition(rowTransition(for: message.role))
+                            .transition(message.role == .user ? .identity : .opacity)
+                            // Keep the row in layout while waiting for the scroll to settle.
+                            .opacity(id == promptID && id != visiblePromptID ? 0 : 1)
+                            .animation(nil, value: visiblePromptID)
+                            // The target starts above the question so aligning it to the
+                            // viewport keeps the question clear of the floating header.
+                            .padding(.top, id == promptID ? transcriptTopInset : 0)
+                            .id(PromptScrollTarget(messageID: id))
+                            .background(alignment: .top) {
+                                if id == promptID {
+                                    Color.clear.onGeometryChange(for: PromptPlacement?.self) { geometry in
+                                        guard let viewport = geometry.bounds(of: .scrollView) else { return nil }
+                                        let frame = geometry.frame(in: .scrollView)
+                                        let reachedTop = frame.minY <= 1
+                                        // A prompt taller than the viewport can reveal from its top.
+                                        let fits = frame.maxY <= viewport.height + 1
+                                        let oversized = frame.height > viewport.height
+                                        return PromptPlacement(
+                                            reachedTop: reachedTop,
+                                            readyToShow: frame.minY >= -1 && (fits || (oversized && reachedTop))
+                                        )
+                                    } action: { placement in
+                                        guard let placement, store.lastSentPromptID == id else { return }
+                                        if placement.reachedTop, promptScrollOverride != .followBottom(id) {
+                                            promptScrollOverride = .stopped(id)
+                                        }
+                                        if placement.readyToShow {
+                                            visiblePromptID = id
+                                        } else if visiblePromptID != id {
+                                            // The first scroll request can precede the row's layout.
+                                            DispatchQueue.main.async {
+                                                guard store.lastSentPromptID == id, visiblePromptID != id else { return }
+                                                withAnimation(nil) {
+                                                    proxy.scrollTo(PromptScrollTarget(messageID: id), anchor: .top)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.top, id == promptID ? -transcriptTopInset : 0)
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .padding(.top, 56)
+                    .padding(.top, transcriptTopInset)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+                        // Grow toward the prompt's top anchor as reply rows gain height.
+                        if let promptTarget, store.lastSentPromptID == promptTarget.messageID,
+                            pinnedToBottom, !followsBottom, !stoppedAtPrompt {
+                            proxy.scrollTo(promptTarget, anchor: .top)
+                        }
+                    }
+                    .onGeometryChange(for: Bool.self) { geometry in
+                        guard let viewport = geometry.bounds(of: .scrollView) else { return true }
+                        return geometry.frame(in: .scrollView).maxY - viewport.height <= 40
+                    } action: { nearTranscriptBottom = $0 }
                     // 5d: the restore reveal. Opacity/offset on the group only —
                     // it cannot change any row's metrics, so nothing re-measures.
                     .opacity(transcriptRevealed ? 1 : 0)
@@ -452,10 +533,10 @@ struct ChatView: View {
                 VStack(spacing: 0) {
                     pillsRow
                         .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .padding(.top, headerPillSpacing)
                         // The bar tucks up under the pills (5a): the row's bottom
                         // inset drops to 4 while it's open.
-                        .padding(.bottom, findShown ? 4 : 12)
+                        .padding(.bottom, findShown ? 4 : headerPillSpacing)
                         .background(WindowDragStrip())
                     if findShown {
                         findBar(matchCount: hits.count)
@@ -479,13 +560,14 @@ struct ChatView: View {
                 scrollToMatch(findHits.first, proxy)
             }
             .overlay(alignment: .bottom) {
-                if showNewMessagesPill {
+                if showsJumpToBottom {
                     newMessagesPill(proxy)
                         .padding(.bottom, 4)
                         .transition(.opacity)
                 }
             }
-            .animation(.easeOut(duration: 0.15), value: showNewMessagesPill)
+            .animation(.easeOut(duration: 0.15), value: showsJumpToBottom)
+            .animation(nil, value: promptID)
             .animation(
                 reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.18),
                 value: store.messages.count
@@ -495,6 +577,7 @@ struct ChatView: View {
             // animation and layout never goes idle (this froze the app).
             // Animate only on new rows.
             .onChange(of: store.messages.last?.text) { _, _ in
+                guard followsBottom else { return }
                 if pinnedToBottom {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 } else {
@@ -502,6 +585,7 @@ struct ChatView: View {
                 }
             }
             .onChange(of: store.messages.count) { _, _ in
+                guard followsBottom else { return }
                 if pinnedToBottom {
                     withAnimation(.easeOut(duration: 0.15)) {
                         proxy.scrollTo("bottom", anchor: .bottom)
@@ -517,8 +601,20 @@ struct ChatView: View {
             // invisible, so the reveal shows the end of the conversation with no
             // visible scroll jump (5d). onAppear covers the empty→loaded case
             // (this subtree is new); onChange covers replacing an open chat.
-            .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: promptTarget, initial: true) { old, new in
+                if let new {
+                    pinnedToBottom = true
+                    showNewMessagesPill = false
+                    if promptScrollOverride != .stopped(new.messageID) {
+                        withAnimation(nil) { proxy.scrollTo(new, anchor: .top) }
+                    }
+                } else if old == nil {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            }
             .onChange(of: store.restoreTick) { _, _ in
+                pinnedToBottom = true
+                showNewMessagesPill = false
                 proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
@@ -675,11 +771,6 @@ struct ChatView: View {
         }
     }
 
-    private func rowTransition(for role: ChatRole) -> AnyTransition {
-        guard !reduceMotion, role == .user else { return .opacity }
-        return .opacity.combined(with: .move(edge: .bottom))
-    }
-
     /// Disengage following only on an actual upward scroll (offset decrease) —
     /// content growth also increases the bottom distance, and reacting to that
     /// would break following on every big streamed chunk. Re-engage within 40pt
@@ -711,6 +802,10 @@ struct ChatView: View {
     private func newMessagesPill(_ proxy: ScrollViewProxy) -> some View {
         let dark = scheme == .dark
         return Button {
+            if let id = store.lastSentPromptID {
+                promptScrollOverride = .followBottom(id)
+            }
+            pinnedToBottom = true
             showNewMessagesPill = false
             withAnimation(.easeOut(duration: 0.25)) { proxy.scrollTo("bottom", anchor: .bottom) }
         } label: {
@@ -718,7 +813,7 @@ struct ChatView: View {
                 Image(systemName: "arrow.down")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(accent)
-                Text("New messages")
+                Text("New Messages")
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(dark ? Theme.color("#f5f5f7") : Theme.color("#1d1d1f"))
             }
@@ -745,6 +840,20 @@ struct ChatView: View {
     private struct ScrollPin: Equatable {
         var offset: CGFloat
         var bottomDistance: CGFloat
+    }
+
+    private struct PromptScrollTarget: Hashable {
+        let messageID: UUID
+    }
+
+    private struct PromptPlacement: Equatable {
+        let reachedTop: Bool
+        let readyToShow: Bool
+    }
+
+    private enum PromptScrollOverride: Equatable {
+        case stopped(UUID)
+        case followBottom(UUID)
     }
 }
 

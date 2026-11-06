@@ -52,12 +52,12 @@ struct ProviderSwitcher: View {
     private enum Column { case providers, models, efforts }
 
     private enum Metrics {
-        static let width: CGFloat = 372
-        static let effortWidth: CGFloat = 118
-        static let railWidth: CGFloat = 150
-        static let row: CGFloat = 25
-        static let header: CGFloat = 21
-        static let inset: CGFloat = 6
+        static let width: CGFloat = 410
+        static let effortWidth: CGFloat = 126
+        static let railWidth: CGFloat = 158
+        static let row: CGFloat = 32
+        static let header: CGFloat = 24
+        static let inset: CGFloat = 8
         static let maxBody: CGFloat = 320
         /// Long catalogs (OpenRouter ships 300+) scroll rather than grow.
         static let renderCap = 200
@@ -85,6 +85,8 @@ struct ProviderSwitcher: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            header
+            Divider()
             HStack(spacing: 0) {
                 providerRail
                 Divider()
@@ -99,6 +101,8 @@ struct ProviderSwitcher: View {
             footer
         }
         .frame(width: switcherWidth)
+        .background { PanelGlassBackground(cornerRadius: 0) }
+        .presentationBackground(.clear)
         .background { keyCapture }
         // Pops from the pill's left edge (5b's curve, 7c's timing).
         .scaleEffect(appeared || reduceMotion ? 1 : 0.96, anchor: .topLeading)
@@ -165,16 +169,23 @@ struct ProviderSwitcher: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer(minLength: 0)
+                if isLive {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(accent)
+                } else if isPreviewed {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
             }
             .foregroundStyle(isLive ? Color.primary : Color.primary.opacity(0.8))
             .padding(.horizontal, 8)
             .frame(height: Metrics.row, alignment: .leading)
-            .background(
-                isLive ? Color.primary.opacity(0.12)
-                    : isPreviewed || hoveredRow == "p:\(provider.id)" ? Color.primary.opacity(0.06)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
+            .background {
+                rowBackground(current: isLive, focused: isPreviewed && column == .providers,
+                              highlighted: isPreviewed || hoveredRow == "p:\(provider.id)")
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -278,17 +289,8 @@ struct ProviderSwitcher: View {
             .foregroundStyle(isCurrent ? Color.primary : Color.primary.opacity(0.8))
             .padding(.horizontal, 8)
             .frame(height: Metrics.row, alignment: .leading)
-            .background(
-                isCurrent ? Color.primary.opacity(0.08)
-                    : isFocused || hoveredRow == "m:\(model)" ? Color.primary.opacity(0.06)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .overlay {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(accent.opacity(0.7), lineWidth: 1)
-                }
+            .background {
+                rowBackground(current: isCurrent, focused: isFocused, highlighted: hoveredRow == "m:\(model)")
             }
             .contentShape(Rectangle())
         }
@@ -355,17 +357,8 @@ struct ProviderSwitcher: View {
             .foregroundStyle(isCurrent ? Color.primary : Color.primary.opacity(0.8))
             .padding(.horizontal, 8)
             .frame(height: Metrics.row, alignment: .leading)
-            .background(
-                isCurrent ? Color.primary.opacity(0.08)
-                    : isFocused || hoveredRow == "e:\(effort)" ? Color.primary.opacity(0.06)
-                    : .clear,
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .overlay {
-                if isFocused {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(accent.opacity(0.7), lineWidth: 1)
-                }
+            .background {
+                rowBackground(current: isCurrent, focused: isFocused, highlighted: hoveredRow == "e:\(effort)")
             }
             .contentShape(Rectangle())
         }
@@ -387,6 +380,40 @@ struct ProviderSwitcher: View {
     }
 
     // MARK: - Chrome
+
+    private var header: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "cpu")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(accent)
+                .accessibilityHidden(true)
+            Text("Select Model")
+                .font(.system(size: 15, weight: .semibold))
+                .accessibilityAddTraits(.isHeader)
+                .fixedSize()
+            Spacer(minLength: 8)
+            if !store.currentModel.isEmpty {
+                Text(store.currentModel)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+        }
+        .padding(14)
+    }
+
+    private func rowBackground(current: Bool, focused: Bool, highlighted: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        return shape
+            .fill(current ? accent.opacity(0.08) : focused || highlighted ? .primary.opacity(0.055) : .clear)
+            .overlay {
+                if focused {
+                    shape.strokeBorder(accent.opacity(0.58), lineWidth: 1)
+                }
+            }
+            .allowsHitTesting(false)
+    }
 
     private func columnHeader(_ title: String) -> some View {
         Text(title)
@@ -419,32 +446,37 @@ struct ProviderSwitcher: View {
     }
 
     private var footer: some View {
-        Button {
-            close { NotificationCenter.default.post(name: .popChatOpenSettings, object: nil) }
-        } label: {
+        HStack(spacing: 12) {
             HStack(spacing: 8) {
-                Text("Manage providers…")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 4)
-                // Renders the hint only: the working ⌘, is the invisible app
-                // menu's item (AppDelegate).
-                Text("⌘,")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.primary.opacity(0.6))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 1)
-                    .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-                    )
+                footerHint("← ↑ ↓ →", "Navigate")
+                footerHint("↵", "Select")
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .contentShape(Rectangle())
+            .accessibilityHidden(true)
+            Spacer(minLength: 4)
+            Button {
+                close { NotificationCenter.default.post(name: .popChatOpenSettings, object: nil) }
+            } label: {
+                footerHint("⌘,", "Manage providers…")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Manage providers")
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+    }
+
+    private func footerHint(_ keys: String, _ label: String) -> some View {
+        HStack(spacing: 4) {
+            Text(keys)
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .padding(.horizontal, 4)
+                .padding(.vertical, 2)
+                .background(.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+                .font(.system(size: 10.5))
+        }
+        .foregroundStyle(.secondary)
     }
 
     // MARK: - Geometry
